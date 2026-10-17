@@ -15,15 +15,23 @@ quyết định đúng khi lập storyboard và khi đọc báo cáo QC.
 
 `/video:plan` bàn ý tưởng - kịch bản - phân cảnh - ánh sáng · `/video:make` dựng phim mới · `/video:revoice` lồng tiếng lại ·
 `/video:subs` phụ đề · `/video:reframe` đổi khung dọc/vuông · `/video:library` kho cảnh · `/video:qc` kiểm tra ·
-`/video:voices` nghe thử giọng · `/video:fix` sửa giật/fps/rung · `/video:capcut` đẩy sang CapCut.
+`/video:voices` chọn giọng theo mục đích · `/video:fix` sửa giật/fps/rung · `/video:critic` phê bình độc lập · `/video:capcut` đẩy sang CapCut.
 Người dùng nói tự nhiên (không gõ lệnh) thì vẫn làm theo bảng dưới.
+
+## 0b. Công cụ MCP `video-studio` (ưu tiên khi có)
+
+Khi các tool `mcp__video-studio__*` có trong phiên, gọi thẳng chúng thay vì chạy script bằng Bash:
+- **Nhanh**: `video_probe`, `video_qc`, `contact_sheet`, `voices_suggest`, `voices_catalogue`, `pronunciation_preview`, `shot_search`, `motion_stills`.
+- **Việc dài** (trả `job_id`, theo dõi bằng `job_status` / `job_list`): `make_video`, `revoice_video`, `subtitle_video`, `convert_fps`,
+  `reframe_video`, `stabilize_video`, `motion_graphic`, `critic_kit`, `voice_samples`.
+Đăng ký một lần: `claude mcp add --scope user video-studio -e PYTHONIOENCODING=utf-8 -- python <repo>/scripts/mcp_server.py`.
 
 ## 1. Chọn lệnh theo yêu cầu
 
 | Người dùng muốn | Làm |
 |---|---|
 | Làm video mới từ ý tưởng/kịch bản + kho nguồn (video, ảnh) | Viết `project.json` theo `templates/project_make.json` → `autovideo.py make project.json --out TEN_v1.mp4` |
-| Đổi giọng thuyết minh / lồng tiếng lại video có sẵn | `autovideo.py revoice VIDEO.mp4 --script loi.txt --voice "Thiện Minh" --out TEN_v1.mp4 [--subs]` |
+| Đổi giọng thuyết minh / lồng tiếng lại video có sẵn | `autovideo.py revoice VIDEO.mp4 --script loi.txt [--voice auto --muc-dich thoi_su] --out TEN_v1.mp4 [--subs]` |
 | Thêm phụ đề cho video | `autovideo.py subs VIDEO.mp4 --script loi.txt --out TEN_sub.mp4` (tự dò mốc trên tiếng) |
 | Kiểm video trước khi giao | `autovideo.py qc VIDEO.mp4` (+ `contact_sheet.py` để soát mắt) |
 | Đổi fps bất kỳ 24/25/30/50/60/120, slow-mo, sửa giật nhịp | `fps_convert.py convert SRC OUT --fps 24 [--slowmo 4]` (RIFE GPU) |
@@ -32,7 +40,9 @@ Người dùng nói tự nhiên (không gõ lệnh) thì vẫn làm theo bảng 
 | Khớp màu giữa cảnh, look điện ảnh | `grade.py match / look / apply` |
 | Xuất theo nền tảng, dò nhịp nhạc | `deliver.py export <preset> / beats` |
 | Bàn ý tưởng, phân cảnh, ánh sáng, góc máy trước khi dựng | `/video:plan` + `references/11-dien-anh-cao-cap.md` |
-| Chọn giọng đọc | `tts_vi.py --list`, sinh mẫu nhiều giọng, `speech_check.py` đo, gửi người dùng nghe |
+| Bản đồ tuyến động, thẻ chương, đồ hoạ số liệu (motion graphics bằng code) | `motion_html.py stills/render` + `templates/motion/*.html`, hoặc cảnh `"nguon": {"html": ...}` |
+| Chấm phim trước khi gửi (người chấm khác người dựng) | `/video:critic` (`critic.py` + agent mới, chấm đến khi mọi hạng mục ≥ 8) |
+| Chọn giọng đọc theo mục đích | `voices.py suggest --muc-dich thoi_su --gioi-tinh nu`, sinh mẫu 2-3 giọng gợi ý, gửi người dùng nghe |
 | Đưa sang CapCut để tinh chỉnh tay | thêm `--capcut TEN_NHAP` vào `make`/`revoice`, hoặc `capcut_api.py build --spec` |
 | Phim AI/micro-drama | `references/09-phim-ai-pipeline.md` + `storyboard.py jobs` |
 
@@ -49,7 +59,19 @@ LUFS, % lời khớp kịch bản). **Đọc báo cáo trước khi gửi** và 
 - `chu_tren_hinh`: ngắn, chỉ số liệu/tên có trong lời; không dùng "—".
 - Nâng cao: `fps` dự án bất kỳ (nguồn khác fps tự qua `fps_convert`), cảnh video có `slowmo`, `camera` (push/pan ảo), `on_dinh`,
   `khung_thong_minh` (tự bám chủ thể khi xuất dọc); dự án có `mau` (khớp màu + look) và `cat_theo_nhac` (cắt trên phách).
-- Giọng mặc định: nam miền Bắc **Thiện Minh** (khuyên dùng cho phim trang trọng). Phong cách tin tức: Minh Đức. Danh sách: `05-am-thanh-giong-doc.md`.
+- **Giọng không bị ép**: `"giong": "auto"` (mặc định) chọn theo `"muc_dich"` (`doanh_nghiep`, `thoi_su`, `tai_lieu`, `quang_cao`,
+  `mang_xa_hoi`, `huong_dan`, `sang_trong`, `tre_em`, `su_kien`) + `"gioi_tinh"`, `"vung"`, `"am_sac"` (tram/vua/sang), dựa trên hồ sơ đo
+  của từng giọng (`voices.py profile`: độ đọc đúng, cao độ, tốc độ). Hoặc chỉ định: tên giọng VieNeu, `{"edge": "vi-VN-HoaiMyNeural"}`,
+  `{"clone": "mau_giong.wav"}` (người nói phải đồng ý), hoặc ghi âm thật `"ghi_am": "cau3.wav"` cho từng cảnh. Mỗi cảnh/nhân vật có thể có giọng riêng.
+  Luôn đưa 2-3 giọng gợi ý (`voices.py suggest`) cho người dùng nghe trước khi chốt.
+- **Chính xác**: từ điển phát âm `templates/phat_am.json` + `"phat_am"` riêng dự án (viết tắt, tên riêng); mỗi câu được Whisper nghe lại,
+  câu < `"do_chinh_xac"` (0,97) tự đọc lại tối đa `"doc_lai"` lần, báo cáo từng câu; phụ đề căn theo **từng từ** thật.
+- **Tuỳ chọn dựng**: `"phong_cach"`: `trang_trong` | `dien_anh` (letterbox 2.39, filmic) | `tai_lieu` | `nang_dong` (cắt theo phách) | `mang_xa_hoi`
+  (khung bám chủ thể). Chuyển cảnh từng cảnh: `cut`, `dissolve`, `fade_black`, `dip_white`, `wipe_left/right`, `slide_left/right`, `zoom_in`.
+  Khung: `"khung"`: `fill` (cắt đầy) | `fit_blur` (giữ trọn hình, nền mờ) | `smart` (bám chủ thể). `"letterbox": 2.39`. Mọi tuỳ chọn ghi đè được ở từng cảnh.
+- **Đồ hoạ động**: `"nguon": {"html": "templates/motion/route_map.html", "params": {...}}` (bản đồ tuyến vẽ dần, thẻ chương...). `make` tự xuất thêm bản **chỉ có nhạc** `_chi_nhac.mp4`. Brief đạo diễn + `facts.md` trước khi dựng phim lớn (`references/12`).
+- **Tự chọn cảnh**: `"kho_canh": "kho.json"` (từ `shot_select.py scan --clip`) và `"nguon": {"tim": "aerial view of a highway at sunset"}`
+  → lấy cảnh khớp nhất, đủ dài, chưa dùng, điểm chất lượng cao. Viết mô tả tìm bằng tiếng Anh.
 
 ## 3. Luật bất biến
 
@@ -75,13 +97,19 @@ LUFS, % lời khớp kịch bản). **Đọc báo cáo trước khi gửi** và 
 | QC trước khi gửi | `references/08-qc-giao-file.md` |
 | Phim AI / micro-drama | `references/09-phim-ai-pipeline.md` |
 | Bài học đã trả giá | `references/10-bai-hoc-thuc-te.md` |
-| Ánh sáng, ống kính, góc máy, chuyển động, màu, âm thanh, dựng cao cấp | `references/11-dien-anh-cao-cap.md` |
+| Ánh sáng, ống kính, khẩu/màn trập/ISO/ND theo tình huống, prompt video AI, góc máy, màu, âm thanh, dựng | `references/11-dien-anh-cao-cap.md` |
+| Brief đạo diễn, luật chống "chuyển động kiểu AI", đồ hoạ bằng code, vòng phê bình, dự án lớn (GES, 3D, hiện trạng) | `references/12-dao-dien-motion-va-phe-binh.md` |
 
 ## 5. Bộ script
 
 | Script | Vai trò |
 |---|---|
 | `autovideo.py` | **Cửa chính**: `make`, `revoice`, `subs`, `qc` |
+| `voices.py` | Hồ sơ đo từng giọng, gợi ý giọng theo mục đích, nhiều nguồn giọng (VieNeu, Edge, nhân bản, ghi âm) |
+| `accuracy.py` | Từ điển phát âm, nghe lại từng câu, tự đọc lại câu sai |
+| `motion_html.py` | Đồ hoạ động bằng HTML + `seek(t)` (Playwright), motion blur sub-frame tự động |
+| `critic.py` | Bộ tư liệu chấm độc lập: contact/phone/strip, khung chết, chữ đủ lâu, số có nguồn |
+| `mcp_server.py` | MCP server: 19 công cụ (nhanh + hàng đợi job) để Claude gọi trực tiếp |
 | `probe_qc.py` | Kiểm kê nguồn / QC phim (khung lạc, chớp, khung lặp, đứng hình, giật, cadence, LUFS, viền đen) |
 | `contact_sheet.py` | Tờ liên hoàn 3 khung/shot để soát mắt |
 | `fps_convert.py` | Bộ chuyển fps 24-120, slow-mo, motion blur 180°, phát hiện khung đệm (RIFE/flow) |

@@ -21,9 +21,12 @@ YUNET = os.environ.get('YUNET_ONNX', os.path.expanduser('~/tools/models/face_det
 
 
 def info(src):
-    r = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,avg_frame_rate',
-                        '-of', 'csv=p=0', src], capture_output=True, text=True).stdout.strip().split(',')
-    a, b = r[2].split('/'); return int(r[0]), int(r[1]), float(a) / float(b)
+    import json as _j
+    r = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,avg_frame_rate,r_frame_rate',
+                        '-of', 'json', src], capture_output=True, text=True).stdout
+    st = _j.loads(r)['streams'][0]
+    fr = st.get('avg_frame_rate') if st.get('avg_frame_rate') not in (None, '0/0') else st.get('r_frame_rate', '25/1')
+    a, b = fr.split('/'); return int(st['width']), int(st['height']), float(a) / float(b)
 
 
 def reader(src, w=None, h=None, start=None, dur=None, gray=False):

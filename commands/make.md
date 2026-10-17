@@ -9,7 +9,7 @@ Dùng skill **video-studio** để dựng một video hoàn chỉnh. Yêu cầu:
    Nếu chỉ có kịch bản/ý tưởng + thư mục nguồn:
    - kiểm kê nguồn (`probe_qc.py --inventory`, `contact_sheet.py`) để biết mỗi file quay gì;
    - chia lời thành cảnh, chọn đúng hình cho từng ý theo `references/02`;
-   - viết `project.json` theo `templates/project_make.json` (giọng mặc định Thiện Minh, 1920×1080, 25 fps nếu không nói khác).
+   - viết `project.json` theo `templates/project_make.json` (`giong: auto` + `muc_dich` theo mục đích video, hoặc giọng người dùng chọn; `phong_cach`, `khung`, chuyển cảnh theo yêu cầu; 1920×1080, 25 fps nếu không nói khác).
 2. Chạy `python scripts/autovideo.py make project.json --out <TEN>_v1.mp4` (tên mới, không ghi đè).
 3. Đọc `<out>_work/BAO_CAO_QC.md`, rồi soát `contact_sheet.py` của bản dựng. Còn lỗi hình, cảnh sai nội dung hoặc lời khớp < 97 % thì sửa project và dựng lại `_v2`.
 4. Gửi file cho người dùng (SendUserFile), kèm báo cáo ngắn bằng tiếng Việt: thời lượng, số cảnh, số đo QC, các cảnh báo về nguồn, việc cần người dùng quyết.

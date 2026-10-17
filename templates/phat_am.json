@@ -1,0 +1,23 @@
+{
+ "_huong_dan": "Từ điển phát âm dùng chung: từ viết -> cách đọc đưa vào TTS. Phụ đề vẫn giữ chữ gốc. Thêm từ riêng của dự án vào 'phat_am' trong project.json. Phân biệt hoa thường.",
+ "BIM": "bim",
+ "FIDIC": "phi đích",
+ "AI": "ây ai",
+ "GPS": "gi pi ét",
+ "CEO": "xi i âu",
+ "KPI": "cây pi ai",
+ "ESG": "i ét gi",
+ "GDP": "gi đi pi",
+ "UBND": "Ủy ban nhân dân",
+ "HĐND": "Hội đồng nhân dân",
+ "TP.HCM": "Thành phố Hồ Chí Minh",
+ "TP. HCM": "Thành phố Hồ Chí Minh",
+ "BOT": "bê ô tê",
+ "PPP": "pê pê pê",
+ "ODA": "ô đê a",
+ "QL": "quốc lộ",
+ "km/h": "ki lô mét trên giờ",
+ "m²": "mét vuông",
+ "m³": "mét khối",
+ "&": " và "
+}

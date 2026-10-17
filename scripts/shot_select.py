@@ -130,6 +130,25 @@ def clip_embed(lib):
     return lib
 
 
+def graphic_scores(lib):
+    """CLIP zero-shot: how much a shot looks like a slide/infographic/screen with text rather than a real camera shot (0..1)."""
+    import torch
+    from transformers import CLIPModel, CLIPProcessor
+    name = 'openai/clip-vit-base-patch32'
+    m = CLIPModel.from_pretrained(name, use_safetensors=True).eval(); pr = CLIPProcessor.from_pretrained(name)
+    prompts = ['an infographic slide with a lot of text and icons', 'a presentation slide or a computer screen with text',
+               'a TV news graphic with a logo and captions', 'a real photograph taken with a camera', 'aerial drone footage of a landscape',
+               'people in a real room filmed with a camera']
+    with torch.no_grad():
+        t = torch.nn.functional.normalize(_feat(m, m.get_text_features(**pr(text=prompts, return_tensors='pt', padding=True)), 'text'), dim=-1).numpy()
+    for s in lib:
+        if not s.get('clip'): continue
+        sims = np.array(s['clip']) @ t.T * 100.0
+        p = np.exp(sims - sims.max()); p /= p.sum()
+        s['graphic'] = round(float(p[:3].sum()), 3)
+    return lib
+
+
 def search(lib, query, top=8):
     import torch
     from transformers import CLIPModel, CLIPProcessor
@@ -160,7 +179,7 @@ def main():
         for f in files:
             sh = scan_file(f, det); lib += sh; print(f'{len(sh):3d} shots  {f}')
         lib = score(lib)
-        if a.clip: lib = clip_embed(lib)
+        if a.clip: lib = graphic_scores(clip_embed(lib))
         json.dump(lib, open(a.out, 'w', encoding='utf8'), ensure_ascii=False)
         print(f'{len(lib)} shots -> {a.out}')
         if a.sheet:

@@ -3,6 +3,8 @@
   python tts_vi.py --list                                      # list preset voices (gender, region, style)
   python tts_vi.py script.json OUTDIR --voices "Thiện Minh" "Minh Đức"     # one wav per line per voice
   python tts_vi.py --text "Câu thử." OUTDIR --voices "Thiện Minh"
+  python tts_vi.py script.json OUTDIR --ref-audio mau_giong.wav --tag GiongRieng    # clone a voice (needs consent)
+  python tts_vi.py --list-json                                 # machine-readable voice list
 
 script.json: [[start, end, "text"], ...]  or  [{"start":..,"end":..,"text":..}, ...]  or  ["text", ...]
 Output: OUTDIR/<VoiceAscii>_<i>.wav (48 kHz) and OUTDIR/<VoiceAscii>_all.wav (lines joined, 0.35 s gaps).
@@ -60,24 +62,40 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('script', nargs='?'); ap.add_argument('outdir', nargs='?')
     ap.add_argument('--text'); ap.add_argument('--voices', nargs='+', default=['Thiện Minh'])
-    ap.add_argument('--list', action='store_true'); ap.add_argument('--no-normalize', action='store_true')
+    ap.add_argument('--list', action='store_true'); ap.add_argument('--list-json', action='store_true')
+    ap.add_argument('--no-normalize', action='store_true')
+    ap.add_argument('--ref-audio', help='clone this voice (3-10 s clean speech, WITH the speaker consent)')
+    ap.add_argument('--tag', help='output file prefix (default: voice name)')
+    ap.add_argument('--temperature', type=float, default=0.8, help='lower = steadier/more literal (0.5-0.8)')
+    ap.add_argument('--only', type=int, nargs='+', help='generate only these line indexes (re-takes)')
+    ap.add_argument('--suffix', default='', help='append to file names, e.g. _r2 for a re-take')
     a = ap.parse_args()
     if a.text and a.script and not a.outdir: a.outdir, a.script = a.script, None
     ensure_venv()
     from vieneu import Vieneu
     tts = Vieneu()
-    if a.list:
-        for label, v in tts.list_preset_voices(): print(label.replace('⭐', '*'))
+    if a.list or a.list_json:
+        L = tts.list_preset_voices()
+        if a.list_json:
+            print(json.dumps([{'label': l.replace('⭐', '').strip(), 'name': v, 'pick': '⭐' in l} for l, v in L], ensure_ascii=False))
+        else:
+            for label, v in L: print(label.replace('⭐', '*'))
         return
     lines = [a.text] if a.text else load_lines(a.script)
     if not a.no_normalize: lines = [normalize(t) for t in lines]
     os.makedirs(a.outdir, exist_ok=True)
-    for v in a.voices:
-        tag = ascii_name(v); files = []
+    voices = ['clone'] if a.ref_audio else a.voices
+    for v in voices:
+        tag = a.tag or ascii_name(v); files = []
         for i, t in enumerate(lines):
-            p = os.path.join(a.outdir, f'{tag}_{i}.wav'); tts.save(tts.infer(t, voice=v), p); files.append(p)
+            p = os.path.join(a.outdir, f'{tag}_{i}{a.suffix}.wav')
+            if a.only and i not in a.only:
+                files.append(p); continue
+            kw = dict(temperature=a.temperature)
+            wav = tts.infer(t, ref_audio=a.ref_audio, **kw) if a.ref_audio else tts.infer(t, voice=v, **kw)
+            tts.save(wav, p); files.append(p)
             print(f'{v} {i}: {t}')
-        if len(files) > 1:
+        if len(files) > 1 and not a.only:
             gap = os.path.join(a.outdir, '_gap.wav')
             subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono', '-t', '0.35', gap])
             seq = sum([[f, gap] for f in files], [])[:-1]

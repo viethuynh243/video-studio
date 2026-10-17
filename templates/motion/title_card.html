@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>title card</title>
+<style>html,body{margin:0;background:#0e2440;overflow:hidden}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script>
+// Title / chapter card. PARAMS: {kicker, title, sub, accent, bg, dur}. One accent colour, one thing moves at a time.
+const P = Object.assign({ kicker: 'CHƯƠNG 1', title: 'Tổng quan dự án', sub: 'Quy mô · Hướng tuyến · Tiến độ',
+  accent: '#6ED2F0', bg: '#0E2440', dur: 4 }, window.PARAMS || {});
+window.DURATION = P.dur;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = cv.width = innerWidth, H = cv.height = innerHeight, S = H / 1080;
+const clamp = (x, a=0, b=1) => Math.min(b, Math.max(a, x));
+const out = x => 1 - Math.pow(1 - clamp(x), 3), io = x => { x = clamp(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x+2, 3)/2; };
+function rise(str, x, y, size, t0, t, color, weight){ ctx.font = `${weight} ${size}px Arial, "Noto Sans", sans-serif`;
+  let cx = x; str.split(' ').forEach((w, i) => { const p = out((t - t0 - i*0.055) / 0.55), ww = ctx.measureText(w + ' ').width;
+    ctx.save(); ctx.beginPath(); ctx.rect(cx - 4, y - size, ww + 8, size*1.3); ctx.clip();
+    ctx.globalAlpha = p; ctx.fillStyle = color; ctx.fillText(w, cx, y + (1-p)*size*1.05); ctx.restore(); cx += ww; }); ctx.globalAlpha = 1; }
+window.seek = async (t) => {
+  ctx.fillStyle = P.bg; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createRadialGradient(W*0.7, H*0.3, 10, W*0.7, H*0.3, W*0.8);              // slow light drift: never a dead frame
+  const dx = 40*S*Math.sin(t*0.6); g.addColorStop(0, 'rgba(110,210,240,0.10)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.save(); ctx.translate(dx, 0); ctx.fillStyle = g; ctx.fillRect(-dx, 0, W, H); ctx.restore();
+  const x = 140*S, lw = 520*S*io((t - 0.15) / 0.7);
+  ctx.fillStyle = P.accent; ctx.fillRect(x, H/2 - 96*S, lw, 5*S);
+  rise(P.kicker, x, H/2 - 120*S, 30*S, 0.25, t, P.accent, '700');
+  rise(P.title, x, H/2 + 10*S, 92*S, 0.45, t, '#ffffff', '700');
+  rise(P.sub, x, H/2 + 80*S, 34*S, 0.85, t, 'rgba(255,255,255,0.75)', '400');
+  const fo = clamp((P.dur - t) / 0.35); if (fo < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - fo})`; ctx.fillRect(0, 0, W, H); }
+};
+window.ready = true;
+</script></body></html>

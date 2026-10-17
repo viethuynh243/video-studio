@@ -37,6 +37,52 @@ Kết quả chạy thử (10/2026):
 - **Kiến thức điện ảnh**: `references/11` gồm sơ đồ ánh sáng, tỉ lệ tương phản, nhiệt màu, giờ vàng/giờ xanh, tiêu cự, màn trập 180°, ND,
   bố cục 3 lớp, coverage, chuyển động máy, màu, âm thanh, quy tắc dựng của Walter Murch.
 
+## Giọng đọc không bị ép - chọn theo mục đích
+
+- `"giong": "auto"` + `"muc_dich"`: chọn trong 9 mục đích (doanh nghiệp, thời sự, tài liệu, quảng cáo, mạng xã hội, hướng dẫn, sang trọng,
+  trẻ em, sự kiện), thêm `"gioi_tinh"`, `"vung"`, `"am_sac"`.
+- Điểm chọn giọng dựa trên **hồ sơ đo thật** của từng giọng: tỉ lệ đọc đúng do Whisper nghe lại, cao độ, tốc độ nói.
+- Mỗi cảnh hoặc nhân vật có thể dùng giọng riêng. Nguồn giọng gồm: VieNeu (25 giọng), Edge TTS, nhân bản từ mẫu 5-10 s (cần người nói đồng ý), hoặc ghi âm thật.
+- `python scripts/voices.py suggest --muc-dich thoi_su --gioi-tinh nu` đưa ra 3-4 lựa chọn kèm lý do.
+
+## Công cụ MCP cho Claude
+
+`scripts/mcp_server.py` biến Video Studio thành 19 công cụ mà Claude gọi trực tiếp, không phải chạy lệnh shell.
+
+- **Công cụ trả kết quả ngay**: probe, QC, contact sheet, gợi ý và danh sách giọng, xem trước phát âm, tìm cảnh, ảnh tĩnh của đồ hoạ.
+- **Việc chạy lâu** chạy nền và trả về `job_id`: dựng phim, lồng tiếng, phụ đề, chuyển fps, đổi khung, chống rung, đồ hoạ động, bộ phê bình, mẫu giọng.
+  Theo dõi bằng `job_status` / `job_list`; job vẫn giữ trạng thái kể cả khi server khởi động lại.
+
+Đăng ký: `claude mcp add --scope user video-studio -e PYTHONIOENCODING=utf-8 -- python <repo>/scripts/mcp_server.py` (`install.ps1` tự làm).
+
+## Đạo diễn motion và phê bình độc lập
+
+- `scripts/motion_html.py`: đồ hoạ động viết bằng HTML, mỗi khung vẽ từ `seek(t)` và render bằng Playwright, có motion blur sub-frame tự động.
+  Có sẵn 2 mẫu: bản đồ tuyến vẽ dần và thẻ chương. Đồ hoạ này đặt được thẳng vào `project.json` như một cảnh.
+- `/video:critic`: một agent mới (không tham gia dựng) chấm 8 hạng mục trên thang 10 và làm bài thử xem tắt tiếng.
+  Phim được sửa và chấm lại đến khi mọi hạng mục đạt ≥ 8.
+  `critic.py` kiểm tra cứng: khung chết, chữ hiện đủ lâu, số liệu có nguồn trong `facts.md`.
+- `references/12` gồm:
+  - mẫu brief đạo diễn;
+  - luật chống "chuyển động kiểu AI";
+  - quy trình phim hạ tầng dài: Google Earth Studio, bản đồ 2D, 3D Blender từ DXF, tư liệu hiện trạng, tổ chức ổ đĩa.
+- Ý tưởng tham khảo từ [howseen-ai/claude-motion-design](https://github.com/howseen-ai/claude-motion-design) (MIT).
+
+## Độ chính xác
+
+- **Từ điển phát âm** dùng chung (`templates/phat_am.json`) và riêng từng dự án (`"phat_am"`) cho từ viết tắt và tên riêng. Phụ đề vẫn giữ chữ gốc.
+- **Nghe lại từng câu**: câu nào khớp dưới `"do_chinh_xac"` (mặc định 97 %) được tự đọc lại, mỗi lần với temperature thấp hơn, rồi giữ bản tốt nhất.
+  Báo cáo ghi rõ từng câu.
+- **Phụ đề căn theo từng từ** thật trong giọng đã ghép.
+- QC tự động: khung lạc, chớp, đoạn đen, đứng hình, độ giật, LUFS.
+
+## Tuỳ chọn dựng
+
+- `"phong_cach"`: `trang_trong`, `dien_anh` (letterbox 2.39, look filmic), `tai_lieu`, `nang_dong` (cắt theo phách), `mang_xa_hoi`.
+- Chuyển cảnh từng cảnh: `cut`, `dissolve`, `fade_black`, `dip_white`, `wipe_left/right`, `slide_left/right`, `zoom_in`.
+- Khung: `fill`, `fit_blur` (giữ trọn hình, nền mờ), `smart` (bám chủ thể).
+- `"nguon": {"tim": "aerial view of a bridge"}` tự lấy cảnh hợp nhất từ kho cảnh.
+
 ## Cài đặt (Windows)
 
 Yêu cầu: Python 3.12, ffmpeg có `libass` và `rubberband` (bản gyan.dev full build), GPU NVIDIA nếu muốn Demucs chạy nhanh.

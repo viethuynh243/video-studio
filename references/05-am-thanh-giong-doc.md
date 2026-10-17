@@ -20,6 +20,21 @@ Phạm Tuyên, Hải Đăng, Xuân Vĩnh, Quốc Tuấn, Thanh Bình (kể chuy�
 nữ Bắc - Mai Anh (tin tức), Trúc Ly, Ngọc Huyền, Ngọc Linh, Đoan Trang, Quỳnh Anh; Trung - Quang Sơn, Ngọc Trân;
 Nam - Thái Sơn, Minh Triết (tin tức), Đức Trí, Adam, Thùy Dung (tin tức), Thục Đoan, Mỹ Duyên, Kim Thanh.
 
+### Chọn theo mục đích (không ép một giọng) - `voices.py`
+
+| `muc_dich` | Ưu tiên |
+|---|---|
+| `doanh_nghiep`, `su_kien` | kể chuyện / tin tức, Bắc, trầm vừa, chậm rãi |
+| `thoi_su` | tin tức, rõ, tốc độ vừa-nhanh |
+| `tai_lieu`, `sang_trong` | kể chuyện, trầm, chậm |
+| `quang_cao`, `mang_xa_hoi` | tự nhiên, sáng, nhanh |
+| `huong_dan` | tự nhiên / tin tức, rõ, vừa |
+| `tre_em` | nữ, đọc truyện, sáng |
+
+Điểm = phong cách hợp + giới tính/vùng theo yêu cầu + **độ đọc đúng đo được** (giọng < 95 % bị trừ mạnh) + cao độ + tốc độ.
+Nguồn giọng: VieNeu (25 giọng, cục bộ), Edge (`edge:vi-VN-HoaiMyNeural`, cần mạng), nhân bản (`clone:mau.wav`, cần người nói đồng ý,
+VieNeu tự gắn watermark ẩn), ghi âm thật (`ghi_am`).
+
 ### Cách chọn có căn cứ
 1. Sinh **cùng một đoạn kịch bản thật** bằng 4-8 giọng ứng viên (`tts_vi.py --voices ...`).
 2. Đo `speech_check.py`: độ khớp lời (Whisper) - giọng đọc sai thanh sẽ bị nhận sai hàng loạt; loại giọng < 97 %.

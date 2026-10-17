@@ -14,6 +14,8 @@ NUM = {'không': '0', 'một': '1', 'hai': '2', 'ba': '3', 'bốn': '4', 'năm':
 
 def tok(s):
     s = s.lower().replace('km/h', 'km trên giờ').replace('ki lô mét', 'km').replace('ki-lô-mét', 'km').replace('kilômét', 'km').replace('kilomet', 'km')
+    s = re.sub(r'(?<=\d)[.,](?=\d{3}(?!\d))', '', s)          # 1.200 -> 1200 (thousands separator)
+    s = re.sub(r'(\d)([^\W\d_])', r'\1 \2', s)            # 1200m -> 1200 m
     s = re.sub(r'[^\w\s]', ' ', s)
     out = []
     for w in s.split():

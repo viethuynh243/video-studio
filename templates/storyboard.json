@@ -3,7 +3,6 @@
   "loai": "phim_du_an",
   "ty_le": "16:9",
   "fps": 25,
-  "giong_mac_dinh": "Thiện Minh",
   "nhan_vat": {
     "_vi_du_phim_ai": {
       "ten": "Anh Minh",
@@ -59,5 +58,7 @@
       "seed": null,
       "trang_thai": "can_dung"
     }
-  ]
+  ],
+  "giong": "auto",
+  "muc_dich": "doanh_nghiep"
 }

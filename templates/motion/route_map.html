@@ -1,0 +1,90 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>route map</title>
+<style>
+  html,body{margin:0;background:#0b1422;overflow:hidden}
+  canvas{display:block}
+</style></head>
+<body><canvas id="c"></canvas>
+<script>
+// Animated route map, deterministic: every pixel comes from seek(t).
+// PARAMS: {title, subtitle, points:[[x,y],...] (0..1), labels:[{i, text, side}], stats:["~120 km","4 làn","100 km/h"],
+//          accent:"#e53935", bg:"#0b1422", draw:[0.6, 3.2] (start/end seconds of the line), dur: 6}
+const P = Object.assign({
+  title: 'TUYẾN CAO TỐC', subtitle: 'Bản đồ minh hoạ - không theo tỉ lệ',
+  points: [[0.12,0.70],[0.22,0.58],[0.34,0.55],[0.45,0.44],[0.58,0.42],[0.70,0.33],[0.84,0.26]],
+  labels: [{i:0, text:'Điểm đầu', side:'below'}, {i:6, text:'Điểm cuối', side:'above'}],
+  stats: ['~120 km', '4 làn xe', '100 km/h'],
+  accent: '#e53935', bg: '#0b1422', draw: [0.6, 3.2], dur: 6
+}, window.PARAMS || {});
+window.DURATION = P.dur;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = cv.width = innerWidth, H = cv.height = innerHeight, S = H / 1080;
+
+// easing + closed-form spring (no state between frames)
+const clamp = (x, a=0, b=1) => Math.min(b, Math.max(a, x));
+const io = x => { x = clamp(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x+2, 3)/2; };
+const out = x => 1 - Math.pow(1 - clamp(x), 3);
+function spring(t, f=2.2, z=0.78){ if (t <= 0) return 0; const w = 2*Math.PI*f, wd = w*Math.sqrt(1-z*z);
+  return 1 - Math.exp(-z*w*t) * (Math.cos(wd*t) + z*w/wd*Math.sin(wd*t)); }
+function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// static terrain texture (seeded) drawn once into an offscreen canvas
+const terr = document.createElement('canvas'); terr.width = W; terr.height = H;
+(() => { const g = terr.getContext('2d'); const r = mulberry32(7);
+  const grd = g.createLinearGradient(0, 0, W, H); grd.addColorStop(0, '#0e1b2e'); grd.addColorStop(1, '#0a1220');
+  g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(110,210,240,0.07)'; g.lineWidth = 1;
+  for (let k = 0; k < 26; k++) { g.beginPath(); const y0 = r()*H; for (let x = 0; x <= W; x += 40) {
+      const y = y0 + 30*Math.sin(x/220 + k) + 18*Math.sin(x/90 + k*1.7); x ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); }
+  g.strokeStyle = 'rgba(255,255,255,0.035)';
+  for (let x = 0; x < W; x += 120*S) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+  for (let y = 0; y < H; y += 120*S) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); } })();
+
+const pts = P.points.map(([x, y]) => [x*W, y*H]);
+const seg = []; let total = 0;
+for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]); seg.push(d); total += d; }
+function partialPath(frac){ let left = frac*total; ctx.beginPath(); ctx.moveTo(...pts[0]); let end = pts[0];
+  for (let i = 1; i < pts.length && left > 0; i++) { const d = seg[i-1], k = Math.min(1, left/d);
+    end = [pts[i-1][0] + (pts[i][0]-pts[i-1][0])*k, pts[i-1][1] + (pts[i][1]-pts[i-1][1])*k]; ctx.lineTo(...end); left -= d; }
+  return end; }
+function arrivalTime(i){ let d = 0; for (let k = 0; k < i; k++) d += seg[k]; return P.draw[0] + (P.draw[1]-P.draw[0]) * (d/total); }
+
+function text(str, x, y, size, color, alpha, weight='700', align='left'){ ctx.globalAlpha = alpha; ctx.fillStyle = color;
+  ctx.font = `${weight} ${size}px Arial, "Noto Sans", sans-serif`; ctx.textAlign = align; ctx.fillText(str, x, y); ctx.globalAlpha = 1; }
+function maskedRise(str, x, y, size, t0, t, color='#fff', weight='700'){   // text rises from a mask, word by word
+  const words = str.split(' '); let cx = x; ctx.font = `${weight} ${size}px Arial, "Noto Sans", sans-serif`;
+  words.forEach((w, i) => { const p = out((t - t0 - i*0.055) / 0.5); const ww = ctx.measureText(w + ' ').width;
+    ctx.save(); ctx.beginPath(); ctx.rect(cx - 4, y - size*1.05, ww + 8, size*1.35); ctx.clip();
+    text(w, cx, y + (1-p)*size*1.1, size, color, p, weight); ctx.restore(); cx += ww; }); }
+
+window.seek = async (t) => {
+  // slow camera drift so no frame is ever dead (log-space zoom 1.00 -> 1.06)
+  const z = Math.exp(Math.log(1.06) * (0.15 * io(t / P.dur) + 0.85 * clamp(t / P.dur)));   // never stops: no dead frame
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = P.bg; ctx.fillRect(0, 0, W, H);
+  ctx.setTransform(z, 0, 0, z, W/2*(1-z), H/2*(1-z));
+  ctx.globalAlpha = io(t / 0.6); ctx.drawImage(terr, 0, 0); ctx.globalAlpha = 1;
+  const frac = io((t - P.draw[0]) / (P.draw[1] - P.draw[0]));
+  if (frac > 0) {
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(229,57,53,0.25)'; ctx.lineWidth = 22*S; partialPath(frac); ctx.stroke();     // glow
+    ctx.strokeStyle = P.accent; ctx.lineWidth = 8*S; const head = partialPath(frac); ctx.stroke();
+    if (frac < 1) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(head[0], head[1], 7*S, 0, 2*Math.PI); ctx.fill(); }
+  }
+  for (const L of P.labels) {                                  // markers pop with a damped spring when the line arrives
+    const ta = arrivalTime(L.i), s = spring(t - ta); if (s <= 0) continue;
+    const [x, y] = pts[L.i]; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 13*S*s, 0, 2*Math.PI); ctx.fill();
+    ctx.fillStyle = P.accent; ctx.beginPath(); ctx.arc(x, y, 7*S*s, 0, 2*Math.PI); ctx.fill();
+    const dy = L.side === 'above' ? -34*S : 52*S; maskedRise(L.text, x - 40*S, y + dy, 34*S, ta + 0.1, t);
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  maskedRise(P.title, 96*S, 130*S, 64*S, 0.2, t);
+  text(P.subtitle, 98*S, 178*S, 24*S, 'rgba(255,255,255,0.65)', out((t - 0.6) / 0.6), '400');
+  P.stats.forEach((s, i) => { const t0 = P.draw[1] + 0.2 + i*0.25, p = spring(t - t0, 2.0, 0.8);
+    if (p <= 0) return; const x = 96*S + i*300*S, y = H - 120*S;
+    ctx.globalAlpha = clamp(p); ctx.fillStyle = 'rgba(14,36,64,0.85)'; ctx.fillRect(x, y - 58*S + (1-p)*20*S, 270*S, 80*S); ctx.globalAlpha = 1;
+    ctx.fillStyle = P.accent; ctx.fillRect(x, y - 58*S + (1-p)*20*S, 6*S, 80*S);
+    text(s, x + 26*S, y + (1-p)*20*S, 40*S, '#fff', clamp(p)); });
+};
+window.ready = true;
+</script></body></html>

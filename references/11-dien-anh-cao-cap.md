@@ -53,6 +53,36 @@ Cân trắng theo key light; da người là chuẩn khi chỉnh màu.
 - **ISO**: giữ ở ISO gốc của máy (dual native ISO) để ít nhiễu nhất.
 - **Profile log** (S-Log3, V-Log, D-Log): cần LUT chuyển đổi + phơi sáng đúng (da khoảng +1 stop so với mức trung tính trên waveform).
 
+### 2.1 Thiết lập phơi sáng theo tình huống (máy mirrorless/cinema full-frame, 24/25p)
+
+Tam giác phơi sáng: **màn trập** cố định theo luật 180° (chuyển động), **khẩu** theo độ sâu trường ảnh mong muốn (kể chuyện), **ND** bù sáng, **ISO** ở mức gốc (nhiễu). Chỉnh theo thứ tự: fps → màn trập → khẩu → ND → ISO cuối cùng.
+
+| Tình huống | fps / màn trập | Khẩu | ISO | ND / ghi chú |
+|---|---|---|---|---|
+| Flycam công trình ban ngày | 25p · 1/50 (hoặc 50p · 1/100 nếu cần slow-mo) | f/2.8-4 (cảm biến drone nhỏ, nét sâu sẵn) | 100 | ND16-ND32 nắng trưa, ND8 giờ vàng; quay D-Log/Log, phơi lệch phải nhẹ |
+| Flycam giờ xanh / đêm (cầu bật đèn) | 25p · 1/50 | mở hết | 400-1600 (không quá ISO tối đa sạch của drone) | bay chậm, tránh xoay nhanh (mờ/nhiễu); dùng hyperlapse nếu quá tối |
+| Phỏng vấn trong nhà (3 điểm) | 25p · 1/50 | f/2-2.8 (85 mm), f/4 nếu 2 người | ISO gốc (vd 800/4000 dual-ISO) | key softbox, fill -1 đến -2 stop, rim; cân trắng theo key 3200/5600 K |
+| Hội nghị, hội trường | 25p · 1/50 (đèn LED nhấp nháy: thử 1/50, 1/60, 1/100 để hết sọc) | f/2.8-4 | 800-3200 | tôn trọng nhiệt màu sân khấu; ống 70-200 mm cho cận người phát biểu |
+| Người làm việc tại hiện trường (nắng) | 25p · 1/50 | f/4-5.6 | 100 | ND6-ND8 stop; quay ngược sáng có tấm hắt / fill; tránh trưa gắt |
+| Chi tiết thiết bị, sản phẩm | 25p · 1/50 | f/2.8 (macro f/5.6-8 để đủ nét) | gốc | slider/motion control; đèn mềm + rim |
+| Slow motion 2-5× | 50p · 1/100, 100/120p · 1/200-1/240 | như trên | tăng 1-2 stop hoặc thêm đèn | ánh sáng nhân tạo phải không nhấp nháy (high-CRI, flicker-free) |
+| Timelapse tiến độ thi công | ảnh 1 tấm / 2-10 s, màn trập dài (ND) cho chuyển động mượt | f/8 | 100 | khoá phơi sáng + cân trắng tay (tránh nhấp nháy), chân máy cố định |
+| Đêm thành phố, vệt đèn xe | 25p · 1/50 (video) / ảnh 2-15 s | f/8-11 | 100-400 | chân máy, tắt chống rung ống kính khi trên tripod |
+
+Mẹo: **Zebra 95-100 %** báo cháy sáng, **false color** cho da (~55-70 IRE), **focus peaking** khi lấy nét tay; quay **log** khi chênh sáng lớn, còn lại profile chuẩn (Rec.709) cho nhanh hậu kỳ.
+
+### 2.2 Viết prompt điện ảnh cho video AI (Veo, Kling, Sora, Seedance, Wan)
+
+Cấu trúc ổn định: **Chủ thể → Bối cảnh → Hành động (một hành động nhỏ) → Ánh sáng → Phong cách/ống kính → Chuyển động máy (cuối câu)**.
+- Mỗi shot: **một cỡ cảnh, một chuyển động, một ống kính**, 2-3 bổ ngữ. Ví dụ: *"medium close-up of an engineer reviewing drawings at a site office, warm window light from the left, shallow depth of field, 85mm lens, slow dolly in"*.
+- Gọi tên ánh sáng cụ thể: *soft morning light, golden hour backlight, overcast soft light, warm practical lamps with deep shadows, blue hour city lights*.
+- Từ khoá ống kính/khẩu được hiểu như mô tả hình (không phải thông số thật): *24mm wide, 35mm, 85mm portrait, telephoto compression, shallow depth of field, deep focus, anamorphic flare*.
+- Màn trập/fps: *natural motion blur, 180-degree shutter look, ultra slow motion*. ISO: *clean, low noise* / *gritty film grain*.
+- Chuyển động máy theo model: Kling theo lệnh camera chặt nhất (ghi rõ chuyển động); Veo mạnh về cảnh tự nhiên và chuyển động môi trường; tránh chồng nhiều chuyển động trong 1 prompt.
+- Giữ nhất quán series: cùng câu mô tả nhân vật/trang phục, cùng ảnh tham chiếu, cùng seed (xem `09-phim-ai-pipeline.md`).
+
+Nguồn tham khảo: [Artlist - prompting tips Kling/Veo/Sora/Seedance](https://help.artlist.io/hc/en-us/articles/31558164653213), [Prompt Architects - direct AI video like a filmmaker](https://prompt-architects.com/blog/27-direct-ai-video-like-filmmaker), [AI video camera movement cheatsheet](https://lzyprompt.com/blog/ai-video-camera-movement-prompts/).
+
 ## 3. Góc máy và bố cục nâng cao
 
 - **Chiều sâu 3 lớp**: tiền cảnh (cành cây, lan can, mép kính) - trung cảnh (chủ thể) - hậu cảnh. Thêm tiền cảnh mờ là cách nhanh nhất để hình "đắt".

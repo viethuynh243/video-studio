@@ -9,13 +9,14 @@ Mục tiêu: cùng người dùng đi từ ý tưởng đến `project.json` d�
 
 **Vòng 1 - Hiểu đề** (một lượt hỏi, tối đa 5 câu, kèm gợi ý mặc định để người dùng chỉ cần gật):
 mục đích và người xem · nơi chiếu (YouTube/TikTok/hội trường...) và tỉ lệ khung · thời lượng · thông điệp duy nhất cần nhớ ·
-nguồn đã có (footage, ảnh, logo, nhạc) và có quay thêm được không · giọng đọc (mặc định nam Bắc).
+nguồn đã có (footage, ảnh, logo, nhạc) và có quay thêm được không · giọng đọc (gợi ý theo mục đích bằng `voices.py suggest`, không ép một giọng; có thể dùng giọng riêng/nhân bản).
 
 **Vòng 2 - 3 hướng sáng tạo**. Mỗi hướng 4-6 dòng:
 - tên hướng;
 - câu mở 3 giây đầu;
 - cấu trúc (mở - thân - kết);
-- tông hình và màu (look);
+- tông hình và màu (look), `phong_cach` dựng, khung (`fill`/`fit_blur`/`smart`), kiểu chuyển cảnh;
+- giọng gợi ý cho hướng đó;
 - nhịp và nhạc;
 - điểm mạnh/rủi ro.
 

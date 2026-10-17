@@ -5,7 +5,7 @@
       hoà cảnh, giọng đọc TTS tiếng Việt (VieNeu), nhạc nền tự lặp + ducking, chuẩn LUFS, phụ đề burn-in + SRT,
       QC tự động và báo cáo. Mẫu: templates/project_make.json
 
-  python autovideo.py revoice VIDEO.mp4 --script script.(json|txt) --voice "Thiện Minh" --out OUT.mp4
+  python autovideo.py revoice VIDEO.mp4 --script script.(json|txt) [--voice auto|"Tên giọng"|clone:mau.wav] [--muc-dich thoi_su] --out OUT.mp4
       Thay giọng thuyết minh của video có sẵn: tách giọng/nhạc (Demucs), tự dò mốc từng câu trên giọng cũ (Whisper)
       nếu kịch bản không có mốc, đọc lại bằng giọng mới, đặt đúng mốc, giữ nhạc gốc, QC + kiểm lời.
 
@@ -118,16 +118,21 @@ def slots_from_times(times, total):
 
 
 # ---------------------------------------------------------------- QC report
-def report(out, work, ref_lines=None, extra=None):
+def report(out, work, ref_lines=None, extra=None, ignore=None):
     r = run_qc(out, True)
     s = r['summary']; i = r['info']
-    errs = [f for f in r['findings'] if f['type'] != 'long_shot']
+    inside = lambda f: any(a - 0.1 <= f.get('t', -9) <= b + 0.1 for a, b, _ in (ignore or []))
+    planned = [f for f in r['findings'] if f['type'] != 'long_shot' and inside(f)]
+    errs = [f for f in r['findings'] if f['type'] != 'long_shot' and not inside(f)]
     lines = [f'# Báo cáo QC - {os.path.basename(out)}', '',
              f'- {i["width"]}x{i["height"]}, {i["fps"]} fps, {i["duration"]:.2f} s, {i["nb_frames"]} khung',
              f'- Cắt cảnh: {s["cuts"]}, shot chuyển động: {s["moving_shots"]}, chỉ số giật trung vị {s["judder_median"]} (p90 {s["judder_p90"]})',
              f'- Âm lượng: {s.get("I_LUFS")} LUFS, True Peak {s.get("TP_dBFS")} dBFS, LRA {s.get("LRA")}',
              f'- Lỗi hình (khung lạc/chớp/khung lặp/đứng hình): {len(errs)}']
     for f in errs: lines.append(f'  - {f}')
+    if planned:
+        kinds = sorted({k for a, b, k in (ignore or []) if any(a - 0.1 <= f.get('t', -9) <= b + 0.1 for f in planned)})
+        lines.append(f'- Thay đổi hình nằm trong chuyển cảnh/thẻ đã lên kế hoạch ({", ".join(kinds)}): {len(planned)} - không tính là lỗi')
     longs = [f for f in r['findings'] if f['type'] == 'long_shot']
     if longs: lines.append(f'- Shot dài > 8 s: {len(longs)} (kiểm có chủ ý không)')
     if extra: lines += [''] + extra
@@ -199,7 +204,7 @@ def prepare_clip(c, n, W, H, fps, L, work):
     import fps_convert, camera
     speed = float(c.get('toc_do', 1.0)); slowmo = float(c.get('slowmo', 1.0 / speed if speed != 1.0 else 1.0))
     out_s = L / fps
-    key = hashlib.md5(json.dumps([n['file'], n.get('vao', 0), round(out_s, 3), fps, slowmo, c.get('on_dinh'), c.get('khung_thong_minh'),
+    key = hashlib.md5(json.dumps([n['file'], n.get('vao', 0), round(out_s, 3), fps, slowmo, c.get('on_dinh'), c.get('khung_thong_minh'), c.get('khung'),
                                   W, H, c.get('shutter', 180)]).encode()).hexdigest()[:12]
     d = os.path.join(work, 'clips'); os.makedirs(d, exist_ok=True)
     final = os.path.join(d, f'{key}.mp4')
@@ -210,9 +215,17 @@ def prepare_clip(c, n, W, H, fps, L, work):
     if c.get('on_dinh'):
         s2 = os.path.join(d, f'{key}_b.mp4'); camera.stabilize(stage, s2, tripod=c.get('on_dinh') == 'tripod'); stage = s2
     iw, ih, _ = camera.info(stage)
-    smart = c.get('khung_thong_minh', True)
-    if smart and abs((iw / ih) - (W / H)) / (W / H) > 0.15:
+    mode = c.get('khung') or ('smart' if c.get('khung_thong_minh', True) else 'fill')
+    differs = abs((iw / ih) - (W / H)) / (W / H) > 0.15
+    if mode == 'smart' and differs:
         s3 = os.path.join(d, f'{key}_c.mp4'); camera.reframe(stage, s3, f'{W}:{H}', f'{W}x{H}'); stage = s3
+    elif mode == 'fit_blur' and differs:
+        s3 = os.path.join(d, f'{key}_c.mp4')
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', stage, '-filter_complex',
+                        f'[0]split[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},gblur=sigma=40,eq=brightness=-0.08[bg];'
+                        f'[b]scale={W}:{H}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2',
+                        '-c:v', 'libx264', '-crf', '12', s3], check=True)
+        stage = s3
     os.replace(stage, final)
     return final
 
@@ -274,13 +287,28 @@ def image_frames(src, W, H, n):
         yield cv2.warpAffine(im, M, (W, H), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
 
 
-def text_layer(text, W, H, pos='top'):
+def color_card(bgr, W, H, n):
+    """Solid card with a soft light that drifts slowly, so the frame is never dead (anti-AI-motion rule)."""
+    ys, xs = np.mgrid[0:H // 4, 0:W // 4].astype(np.float32)
+    base = np.zeros((H // 4, W // 4, 3), np.float32); base[:] = bgr
+    import cv2
+    for k in range(n):
+        p = k / max(1, n - 1)
+        cx, cy = (0.62 + 0.10 * p) * W / 4, (0.32 + 0.04 * np.sin(p * 3.1)) * H / 4
+        g = np.exp(-(((xs - cx) / (W / 4 * 0.45)) ** 2 + ((ys - cy) / (H / 4 * 0.45)) ** 2))[..., None]
+        light = 18 + 10 * (1 - abs(2 * p - 1))
+        yield np.clip(cv2.resize(base + g * light, (W, H), interpolation=cv2.INTER_CUBIC), 0, 255).astype(np.uint8)
+
+
+def text_layer(text, W, H, pos='top', lb=0):
     from PIL import Image, ImageDraw, ImageFont
-    size = round(H * 0.052); f = ImageFont.truetype(FONT_BOLD, size)
+    size = round(min(W, H) * (0.085 if pos == 'center' else 0.058)); f = ImageFont.truetype(FONT_BOLD, size)
+    while max(ImageDraw.Draw(Image.new('L', (1, 1))).textbbox((0, 0), l, font=f)[2] for l in text.split('\n')) > W * 0.86 and size > 20:
+        size = int(size * 0.92); f = ImageFont.truetype(FONT_BOLD, size)
     img = Image.new('RGBA', (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(img)
     lines = text.split('\n')
     bw = max(d.textbbox((0, 0), l, font=f)[2] for l in lines); lh = round(size * 1.3); bh = lh * len(lines)
-    x0 = (W - bw) // 2; y0 = {'top': round(H * 0.08), 'center': (H - bh) // 2, 'lower_third': round(H * 0.62)}.get(pos, round(H * 0.08))
+    x0 = (W - bw) // 2; y0 = {'top': lb + round(H * 0.06), 'center': (H - bh) // 2, 'lower_third': round(H * 0.62) - lb}.get(pos, lb + round(H * 0.06))
     pad = round(size * 0.45)
     d.rounded_rectangle([x0 - pad, y0 - pad // 2, x0 + bw + pad, y0 + bh + pad // 2], radius=pad // 2, fill=(14, 36, 64, 150))
     for i, l in enumerate(lines):
@@ -324,39 +352,180 @@ def build_luts(P, C, work):
     return out
 
 
+STYLES = {
+    # phong_cach: defaults applied only where the project/scene does not say otherwise
+    'trang_trong': {'chuyen_canh': 'dissolve', 'chuyen_canh_s': 0.7, 'camera': [{'move': 'push_in', 'amount': 0.05}, {'move': 'pull_out', 'amount': 0.05}],
+                    'anh': ['zoom_in', 'pan_right', 'zoom_out', 'pan_left'], 'look': 'clean', 'cat_theo_nhac': False},
+    'dien_anh': {'chuyen_canh': 'dissolve', 'chuyen_canh_s': 0.9, 'camera': [{'move': 'push_in', 'amount': 0.07}, {'move': 'pan_right', 'amount': 0.06}],
+                 'anh': ['zoom_in', 'pan_right', 'pan_left'], 'look': 'filmic', 'letterbox': 2.39, 'cat_theo_nhac': 'downbeat'},
+    'tai_lieu': {'chuyen_canh': 'cut', 'chuyen_canh_s': 0.6, 'camera': [{'move': 'push_in', 'amount': 0.04}], 'anh': ['zoom_in', 'pan_right'],
+                 'look': 'warm', 'cat_theo_nhac': False},
+    'nang_dong': {'chuyen_canh': 'cut', 'chuyen_canh_s': 0.35, 'camera': [{'move': 'push_in', 'amount': 0.10}, {'move': 'pan_left', 'amount': 0.10}],
+                  'anh': ['zoom_in', 'zoom_out'], 'look': 'teal_orange', 'cat_theo_nhac': True},
+    'mang_xa_hoi': {'chuyen_canh': 'cut', 'chuyen_canh_s': 0.3, 'camera': [{'move': 'push_in', 'amount': 0.12}], 'anh': ['zoom_in'],
+                    'look': 'clean', 'cat_theo_nhac': True, 'khung': 'smart'},
+}
+TRANSITIONS = ('cut', 'dissolve', 'fade_black', 'dip_white', 'wipe_left', 'wipe_right', 'slide_left', 'slide_right', 'zoom_in')
+
+
+def apply_style(P, C):
+    st = STYLES.get(P.get('phong_cach') or '', {})
+    if not st: return
+    P.setdefault('chuyen_canh_s', st['chuyen_canh_s'])
+    if 'cat_theo_nhac' not in P: P['cat_theo_nhac'] = st['cat_theo_nhac']
+    if 'mau' not in P: P['mau'] = {'look': st['look'], 'khop_mau': True}
+    if st.get('letterbox') and 'letterbox' not in P and P.get('width', 1920) > P.get('height', 1080): P['letterbox'] = st['letterbox']
+    if st.get('khung') and 'khung' not in P: P['khung'] = st['khung']
+    kv = ka = 0
+    for i, c in enumerate(C):
+        if 'chuyen_canh' not in c and i + 1 < len(C): c['chuyen_canh'] = st['chuyen_canh']
+        n = c.get('nguon') or {}
+        if (n.get('file') or n.get('tim')) and 'camera' not in c and not c.get('slowmo'):
+            c['camera'] = st['camera'][kv % len(st['camera'])]; kv += 1
+        if n.get('anh') and 'hieu_ung' not in n:
+            n['hieu_ung'] = st['anh'][ka % len(st['anh'])]; ka += 1
+    log(f'phong cách dựng: {P["phong_cach"]}')
+
+
+def blend(kind, a, b, w):
+    """Transition frame: a = outgoing, b = incoming, w = 0..1 (eased)."""
+    if kind == 'fade_black': return a * max(0.0, 1 - 2 * w) if w < 0.5 else b * (2 * w - 1)
+    if kind == 'dip_white':
+        white = np.full_like(a, 255.0)
+        return a * (1 - 2 * w) + white * (2 * w) if w < 0.5 else white * (2 - 2 * w) + b * (2 * w - 1)
+    h, wd = a.shape[:2]
+    if kind in ('wipe_left', 'wipe_right'):
+        x = int(round(wd * w)); out = a.copy()
+        if kind == 'wipe_left': out[:, wd - x:] = b[:, wd - x:]
+        else: out[:, :x] = b[:, :x]
+        return out
+    if kind in ('slide_left', 'slide_right'):
+        x = int(round(wd * w)); out = np.empty_like(a)
+        if kind == 'slide_left':
+            out[:, :wd - x] = a[:, x:]; out[:, wd - x:] = b[:, :x]
+        else:
+            out[:, x:] = a[:, :wd - x]; out[:, :x] = b[:, wd - x:]
+        return out
+    if kind == 'zoom_in':
+        import cv2
+        z = 1 + 0.25 * w; M = np.float32([[z, 0, wd / 2 * (1 - z)], [0, z, h / 2 * (1 - z)]])
+        return cv2.warpAffine(a, M, (wd, h), borderMode=cv2.BORDER_REFLECT) * (1 - w) + b * w
+    return a * (1 - w) + b * w                       # dissolve
+
+
+def resolve_voice(P, c):
+    """Scene voice -> character voice -> project voice -> chosen by purpose (voices.suggest). Never a hidden default."""
+    v = c.get('giong')
+    if not v and c.get('nhan_vat'):
+        v = (P.get('nhan_vat', {}).get(c['nhan_vat'][0]) or {}).get('giong')
+    v = v or P.get('giong') or P.get('giong_mac_dinh') or 'auto'
+    if isinstance(v, dict):
+        if v.get('clone'): return 'clone:' + v['clone'], 'nhân bản giọng từ mẫu (cần sự đồng ý của người nói)'
+        if v.get('edge'): return 'edge:' + v['edge'], 'Edge TTS'
+    if v == 'auto':
+        import voices
+        md = P.get('muc_dich', 'doanh_nghiep')
+        best = voices.suggest(md, P.get('gioi_tinh'), P.get('vung'), 1, P.get('am_sac'))
+        return best[0][0], f'tự chọn theo mục đích "{md}": {best[0][2]}'
+    return v, 'chỉ định'
+
+
+def pick_from_library(P, C, NEED_S, root):
+    """nguon: {"tim": "english description"} -> best unused shot from the CLIP library (project 'kho_canh')."""
+    todo = [i for i, c in enumerate(C) if (c.get('nguon') or {}).get('tim')]
+    if not todo: return
+    lib_p = P.get('kho_canh'); lib_p = lib_p if (not lib_p or os.path.isabs(lib_p)) else os.path.join(root, lib_p)
+    if not lib_p or not os.path.exists(lib_p): raise SystemExit('cảnh có "tim" nhưng thiếu "kho_canh" (chạy shot_select.py scan --clip)')
+    import shot_select
+    lib = json.load(open(lib_p, encoding='utf8')); used = set()
+    for i in todo:
+        c = C[i]; q = c['nguon']['tim']; need = NEED_S[i] / slowmo_of(c) + 0.3
+        if any(s.get('clip') and 'graphic' not in s for s in lib): lib = shot_select.graphic_scores(lib)
+        found = [s for s in shot_select.search(lib, q, top=40) if (s['file'], s['start']) not in used]
+        real = [s for s in found if s.get('graphic', 0) < float(P.get('nguong_do_hoa', 0.5))]
+        if real: found = real                                   # never pick a slide / foreign graphic when real footage exists
+        cands = [s for s in found if s['dur'] >= need] or found
+        if not cands: raise SystemExit(f'{c["id"]}: không tìm được cảnh cho "{q}"')
+        mx = max(x['match'] for x in cands)
+        best = max(cands, key=lambda s: 0.7 * s['match'] / mx + 0.3 * s['score'] / 100)
+        if best['match'] < float(P.get('nguong_tim', 0.25)):
+            P.setdefault('_canh_can_xem', []).append(c['id'])
+            if not P.get('tim_chap_nhan_thap'):        # never show a wrong shot: honest placeholder, flagged in the report
+                log(f'  {c["id"]}: KHÔNG có cảnh đủ khớp cho "{q}" (tốt nhất {best["match"]}) -> đặt thẻ giữ chỗ "CẦN CẢNH"')
+                c['nguon'] = {'mau': '#1A1F2B'}; c['chu_tren_hinh'] = 'CẦN CẢNH:\n' + q[:48]; c['vi_tri_chu'] = 'center'
+                continue
+            log(f'  {c["id"]}: CẢNH BÁO - độ khớp thấp ({best["match"]}) cho "{q}": phải xem contact sheet, có thể sai nội dung')
+        used.add((best['file'], best['start']))
+        c['nguon'] = {'file': best['file'], 'vao': best['start'], 'ra': best['end'], 'bo_qua_kiem_cat': True}
+        log(f'  {c["id"]}: "{q}" -> {os.path.basename(best["file"])} {best["start"]:.2f}-{best["end"]:.2f}s (khớp {best["match"]}, điểm {best["score"]})')
+
+
+def guarded_tts(texts, voice, outdir, threshold, tries, originals=None):
+    import accuracy
+    os.makedirs(outdir, exist_ok=True)
+    key = hashlib.md5(json.dumps([voice, texts, threshold, tries, 2], ensure_ascii=False).encode()).hexdigest()[:10]
+    stamp = os.path.join(outdir, f'guard_{key}.json')
+    if os.path.exists(stamp):
+        d = json.load(open(stamp, encoding='utf8'))
+        if all(os.path.exists(f) for f in d['files']): return d['files'], d['rows']
+    files, rows = accuracy.guarded_synth(texts, voice, outdir, threshold, tries, log=log, originals=originals)
+    json.dump({'files': files, 'rows': rows}, open(stamp, 'w', encoding='utf8'), ensure_ascii=False)
+    return files, rows
+
+
 def make(proj_path, out=None, work=None, no_subs=False, capcut=None):
     P = json.load(open(proj_path, encoding='utf8')); root = os.path.dirname(os.path.abspath(proj_path))
     W, H, fps = int(P.get('width', 1920)), int(P.get('height', 1080)), float(P.get('fps', 25))
     out = out or os.path.join(root, P.get('ten', 'video') + '.mp4'); need_new(out)
     work = os.path.abspath(work or os.path.splitext(out)[0] + '_work'); os.makedirs(work, exist_ok=True)
-    td = float(P.get('chuyen_canh_s', 0.5)); T = int(round(td * fps))
     rel = lambda p: p if (p is None or os.path.isabs(p)) else os.path.join(root, p)
     C = P['canh']
     for c in C:
         n = c.get('nguon') or {}
-        for k in ('file', 'anh'):
+        for k in ('file', 'anh', 'html'):
             if n.get(k): n[k] = rel(n[k])
             if n.get(k) and not os.path.exists(n[k]): raise SystemExit(f'{c["id"]}: không thấy {n[k]}')
-    # 1. voices
-    voice_def = P.get('giong_mac_dinh', 'Thiện Minh')
-    vfiles = [None] * len(C)
-    by_voice = {}
+    apply_style(P, C)
+    for c in C:
+        if P.get('khung') and 'khung' not in c: c['khung'] = P['khung']
+    warn = P.setdefault('_canh_bao', [])
+    if C and (C[0].get('nguon') or {}).get('mau') and P.get('phong_cach') in ('nang_dong', 'mang_xa_hoi', 'quang_cao', None):
+        warn.append('Mở đầu bằng thẻ màu trơn: 3 giây đầu nên là hình mạnh nhất (flycam/cảnh đẹp nhất), chữ đặt lên hình')
+    for c in C:
+        sn = set(re.findall(r'\d[\d.,]*', c.get('chu_tren_hinh') or '')) - set(re.findall(r'\d[\d.,]*', c.get('thoai') or ''))
+        if sn and c.get('thoai'): warn.append(f"{c['id']}: số trên hình {sorted(sn)} không có trong lời đọc - kiểm tra nguồn/đồng bộ")
+    td = float(P.get('chuyen_canh_s', 0.5)); T = int(round(td * fps))
+    # 1. voices: per scene / character / project / by purpose; pronunciation dictionary; listen-back + re-takes
+    import accuracy
+    pdict = accuracy.load_dict(P.get('phat_am'))
+    vfiles, by_voice, vrows, vnote = [None] * len(C), {}, {}, {}
     for i, c in enumerate(C):
-        if c.get('thoai'): by_voice.setdefault(c.get('giong', voice_def), []).append(i)
+        if c.get('ghi_am'):                                # own recorded narration for this scene
+            vfiles[i] = rel(c['ghi_am']); continue
+        if c.get('thoai'):
+            v, why = resolve_voice(P, c); by_voice.setdefault(v, []).append(i); vnote[v] = why
+    if len(by_voice) > 1 and not P.get('nhan_vat'):
+        warn.append(f'Phim dùng {len(by_voice)} giọng ({", ".join(by_voice)}) mà không khai báo nhân vật: người xem sẽ thấy đổi giọng vô cớ')
+    for w_ in warn: log('  CẢNH BÁO: ' + w_)
     for v, idx in by_voice.items():
-        log(f'TTS {v}: {len(idx)} câu')
-        fs = tts([C[i]['thoai'] for i in idx], v, os.path.join(work, 'tts'))
-        for i, f in zip(idx, fs): vfiles[i] = f
+        log(f'Giọng {v} ({vnote[v]}): {len(idx)} câu')
+        spoken = [accuracy.apply_dict(C[i]['thoai'], pdict) for i in idx]
+        fs, rows = guarded_tts(spoken, v, os.path.join(work, 'tts'), float(P.get('do_chinh_xac', 0.97)), int(P.get('doc_lai', 3)),
+                               [C[i]['thoai'] for i in idx])
+        for i, f, r in zip(idx, fs, rows):
+            vfiles[i] = f; vrows[i] = dict(r, giong=v)
     lead = float(P.get('lead_s', 0.35)); tail = float(P.get('tail_s', 0.55))
     # 2. durations
     N, NEED = [], []
+    pick_from_library(P, C, [max(float(c.get('thoi_luong') or 0), (wav_dur(vfiles[i]) + lead + tail) if vfiles[i] else 0, 1.5)
+                             for i, c in enumerate(C)], root)
     for i, c in enumerate(C):
         need = (wav_dur(vfiles[i]) / float(P.get('slow', 1.0)) + lead + tail) if vfiles[i] else 0.0
         d = max(float(c.get('thoi_luong') or 0), need, 1.5)
         n = c.get('nguon') or {}
         if n.get('file') and not n.get('bo_qua_kiem_cat'):
             sp = 1.0 / slowmo_of(c)              # source seconds per output second
-            extra = td if (c.get('chuyen_canh') == 'dissolve' and i + 1 < len(C)) else 0.0
+            extra = td if (c.get('chuyen_canh', 'cut') != 'cut' and i + 1 < len(C)) else 0.0
             a0, a1, note = safe_range(n, (d + extra) * sp)
             if note:
                 log(f'  {c["id"]}: {note}')
@@ -388,15 +557,27 @@ def make(proj_path, out=None, work=None, no_subs=False, capcut=None):
     enc = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{W}x{H}', '-r', str(fps),
                             '-i', '-', '-c:v', 'libx264', '-crf', '16', '-preset', 'medium', '-pix_fmt', 'yuv420p',
                             '-g', str(int(fps * 2)), '-movflags', '+faststart', silent], stdin=subprocess.PIPE)
-    pend, written = None, 0
+    pend, written, pend_kind = None, 0, 'dissolve'
+    planned = []
+    lb = int(round((H - W / float(P['letterbox'])) / 2)) if P.get('letterbox') and W / H < float(P['letterbox']) else 0
     fade_in = int(round(fps * 0.5)) if P.get('mo_dau_fade', True) else 0
     fade_out = int(round(fps * 0.8)) if P.get('ket_fade', True) else 0
     for i, c in enumerate(C):
         n = c.get('nguon') or {}
-        diss = c.get('chuyen_canh', 'cut') == 'dissolve' and i + 1 < len(C)
+        kind = c.get('chuyen_canh', 'cut'); diss = kind != 'cut' and i + 1 < len(C)
+        if diss: planned.append(((starts[i + 1] - 1) / fps, (starts[i + 1] + T + 1) / fps, kind))
+        if n.get('mau') and sum(hex_bgr(n['mau'])) < 90: planned.append((starts[i] / fps, (starts[i] + N[i]) / fps, 'thẻ nền tối'))
         L = N[i] + (T if diss else 0)
         lut_vf = ','.join(f"lut3d=file='{os.path.basename(x)}':interp=tetrahedral" for x in luts.get(c['id'], []))
-        if n.get('file'):
+        if n.get('html'):
+            import motion_html
+            key = hashlib.md5(json.dumps([n['html'], os.path.getmtime(n['html']), n.get('params'), L, fps, W, H], ensure_ascii=False).encode()).hexdigest()[:10]
+            mp = os.path.join(work, 'clips', f'html_{key}.mp4'); os.makedirs(os.path.dirname(mp), exist_ok=True)
+            if not os.path.exists(mp):
+                log(f'  {c["id"]}: dựng đồ hoạ động {os.path.basename(n["html"])}')
+                motion_html.render(n['html'], mp, L / fps, fps, W, H, n.get('sub', 'auto'), n.get('params'))
+            gen = video_frames({'file': mp, 'vao': 0}, W, H, fps, L, 1.0, lut_vf if n.get('ap_mau') else '', cwd=work)
+        elif n.get('file'):
             if not n.get('bo_qua_kiem_cat'):
                 a0, a1, note = safe_range(n, L / fps / slowmo_of(c))
                 if note:
@@ -410,27 +591,34 @@ def make(proj_path, out=None, work=None, no_subs=False, capcut=None):
                 n = dict(n, anh=g)
             gen = image_frames(n, W, H, L)
         else:
-            col = np.zeros((H, W, 3), np.uint8); col[:] = hex_bgr(n.get('mau', '#000000')); gen = (col for _ in range(L))
-        lay = text_layer(c['chu_tren_hinh'], W, H, c.get('vi_tri_chu', 'top')) if c.get('chu_tren_hinh') else None
+            gen = color_card(hex_bgr(n.get('mau', '#000000')), W, H, L)
+        lay = text_layer(c['chu_tren_hinh'], W, H, c.get('vi_tri_chu', 'top'), lb) if c.get('chu_tren_hinh') else None
         buf = []
         cam = c.get('camera')
+        t_in = 0.3                                   # when the on-screen text appears (s from scene start)
+        if lay is not None and vfiles[i] and c.get('thoai'):
+            m = re.search(r'\d', c['chu_tren_hinh']); num = re.search(r'\d[\d.,]*', c['chu_tren_hinh'])
+            pos = c['thoai'].find(num.group(0).rstrip('.,')) if num else -1
+            if pos > 0: t_in = lead + wav_dur(vfiles[i]) * pos / max(1, len(c['thoai'])) - 0.15
         for k, fr in enumerate(gen):
             if cam and n.get('file'): fr = cam_warp(fr, k, L, cam)
             fr = fr.astype(np.float32)
+            if lb:
+                fr[:lb] = 0; fr[H - lb:] = 0
             if lay is not None:
-                a_in = min(1.0, max(0.0, (k - fps * 0.3) / (fps * 0.6))); a_out = min(1.0, max(0.0, (N[i] - k - fps * 0.2) / (fps * 0.5)))
+                a_in = min(1.0, max(0.0, (k - fps * t_in) / (fps * 0.45))); a_out = min(1.0, max(0.0, (N[i] - k - fps * 0.2) / (fps * 0.5)))
                 a = min(a_in, a_out)
                 if a > 0: fr = fr * (1 - lay[1] * a) + lay[0] * lay[1] * a
             if pend is not None and k < len(pend):
                 w = (k + 1) / (len(pend) + 1); w = w * w * (3 - 2 * w)
-                fr = pend[k] * (1 - w) + fr * w
+                fr = blend(pend_kind, pend[k], fr, w)
             if diss and k >= N[i]: buf.append(fr); continue
             g = starts[i] + k
             if g < fade_in: fr = fr * (g / fade_in)
             if g >= total - fade_out: fr = fr * max(0.0, (total - 1 - g) / fade_out)
             enc.stdin.write(np.clip(fr, 0, 255).astype(np.uint8).tobytes()); written += 1
-        pend = buf if diss else None
-        log(f'  cảnh {c["id"]}: {N[i] / fps:.2f}s {"+ hoà cảnh" if diss else ""}')
+        pend = buf if diss else None; pend_kind = kind
+        log(f'  cảnh {c["id"]}: {N[i] / fps:.2f}s {("+ " + kind) if diss else ""}')
     enc.stdin.close(); enc.wait()
     # 4. sound
     lines = [((starts[i] / fps), (starts[i] + N[i]) / fps, C[i].get('thoai', '')) for i in range(len(C))]
@@ -443,7 +631,9 @@ def make(proj_path, out=None, work=None, no_subs=False, capcut=None):
     srt = None
     spoken = [(u[0], u[1], C[i]['thoai']) for i, u in enumerate(used) if u]
     if spoken:
-        cues = subs.make_cues(spoken, fps); srt = os.path.splitext(out)[0] + '.srt'
+        import accuracy as _acc
+        stem0 = os.path.splitext(mixed)[0] + '_voice.wav'
+        cues = subs.make_cues_aligned(spoken, stem0, fps, _acc.model()); srt = os.path.splitext(out)[0] + '.srt'
         subs.write_srt(cues, srt); ass = os.path.join(work, 'phu_de.ass'); subs.write_ass(cues, ass, W, H)
     if srt and P.get('phu_de', True) and not no_subs:
         log('burn phụ đề'); subs.burn(mixed, ass, out)
@@ -453,8 +643,27 @@ def make(proj_path, out=None, work=None, no_subs=False, capcut=None):
     stem = os.path.splitext(mixed)[0] + '_voice.wav'
     if spoken:
         acc, errs, _ = speech_accuracy(stem, [t for *_, t in spoken])
-        extra = [f'- Lời đọc khớp kịch bản: {acc * 100:.1f} %'] + [f'  - "{a}" -> nghe "{b}"' for a, b in errs[:15]]
-    report(out, work, extra=extra)
+        acc2, errs2, _ = speech_accuracy(stem, [accuracy.apply_dict(t, pdict) for *_, t in spoken])
+        if acc2 > acc: acc, errs = acc2, errs2
+        extra = [f'- Lời đọc khớp kịch bản (toàn phim): {acc * 100:.1f} %'] + [f'  - "{a}" -> nghe "{b}"' for a, b in errs[:15]]
+        extra += ['', '## Từng câu (sau khi tự đọc lại câu sai)', '| Cảnh | Giọng | Khớp | Nghe được |', '|---|---|---|---|']
+        thr = float(P.get('do_chinh_xac', 0.97))
+        for i, r in sorted(vrows.items()):
+            extra.append(f"| {C[i]['id']} | {r['giong']} | {r['acc'] * 100:.0f}%{' (thấp)' if r['acc'] < thr else ''} | {r['nghe']} |")
+        extra += ['', '## Giọng đã chọn'] + [f'- {v}: {w}' for v, w in vnote.items()]
+    if P.get('_canh_bao'):
+        extra += ['', '## Cảnh báo dựng'] + [f'- {w}' for w in P['_canh_bao']]
+    if P.get('_canh_can_xem'):
+        extra += ['', f"## Cảnh tự chọn cần xem bằng mắt (độ khớp thấp): {', '.join(P['_canh_can_xem'])}"]
+    if mus and P.get('ban_chi_nhac', True):                 # deliverable: picture + music only (no voice)
+        mo = os.path.splitext(out)[0] + '_chi_nhac.mp4'
+        if not os.path.exists(mo):
+            subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', silent, '-stream_loop', '-1', '-i', mus, '-map', '0:v', '-map', '1:a',
+                            '-c:v', 'copy', '-af', f'afade=t=out:st={max(0, total / fps - 2):.2f}:d=2,loudnorm=I={float(P.get("lufs", -16))}:TP=-1.5',
+                            '-c:a', 'aac', '-b:a', '256k', '-t', f'{total / fps:.3f}', mo], check=True)
+            extra.append(f'- Bản chỉ có nhạc: {os.path.basename(mo)}')
+    json.dump([list(x) for x in planned], open(os.path.splitext(out)[0] + '_plan.json', 'w', encoding='utf8'), ensure_ascii=False)
+    report(out, work, extra=extra, ignore=planned)
     if capcut: to_capcut(capcut, silent, stem, mus, srt, W, H)
     log('XONG ->', out)
 
@@ -469,7 +678,8 @@ def separate(video, work):
     return os.path.join(d, 'voice.wav'), os.path.join(d, 'music.wav')
 
 
-def revoice(video, script, voice, out, work=None, no_subs=True, lufs=-16, slow=1.0, capcut=None, keep_music=True):
+def revoice(video, script, voice, out, work=None, no_subs=True, lufs=-16, slow=1.0, capcut=None, keep_music=True,
+            muc_dich='doanh_nghiep', gioi_tinh=None, vung=None, phat_am=None, threshold=0.97):
     need_new(out)
     work = work or os.path.splitext(out)[0] + '_work'; os.makedirs(work, exist_ok=True)
     info = probe(video); T = info['duration']
@@ -484,12 +694,19 @@ def revoice(video, script, voice, out, work=None, no_subs=True, lufs=-16, slow=1
         slots = [(s, e) for s, e, _ in S]
     json.dump([[s, e, t] for (s, e), t in zip(slots, texts)], open(os.path.join(work, 'script_moc.json'), 'w', encoding='utf8'),
               ensure_ascii=False, indent=1)
-    files = tts(texts, voice, os.path.join(work, 'tts'))
+    v, why = resolve_voice({'giong': voice, 'muc_dich': muc_dich, 'gioi_tinh': gioi_tinh, 'vung': vung}, {})
+    log(f'Giọng {v} ({why})')
+    import accuracy
+    pd = accuracy.load_dict(json.load(open(phat_am, encoding='utf8')) if phat_am else None)
+    files, rows = guarded_tts([accuracy.apply_dict(t, pd) for t in texts], v, os.path.join(work, 'tts'), threshold, 3, texts)
+    voice = v
     mixed = os.path.join(work, 'co_tieng.mp4')
     if os.path.exists(mixed): os.replace(mixed, mixed + '.old')
     used = voice_mix.mix_voice([(s, e, t) for (s, e), t in zip(slots, texts)], files, video, mixed,
                                music if keep_music else None, lufs, lead=0.0, slow=slow, total=T)
-    cues = subs.make_cues([(u[0], u[1], t) for u, t in zip(used, texts) if u], info['fps'] or 25)
+    import accuracy as _acc
+    cues = subs.make_cues_aligned([(u[0], u[1], t) for u, t in zip(used, texts) if u], os.path.splitext(mixed)[0] + '_voice.wav',
+                                  info['fps'] or 25, _acc.model())
     srt = os.path.splitext(out)[0] + '.srt'; subs.write_srt(cues, srt)
     if not no_subs:
         ass = os.path.join(work, 'phu_de.ass'); subs.write_ass(cues, ass, info['width'], info['height']); subs.burn(mixed, ass, out)
@@ -497,8 +714,9 @@ def revoice(video, script, voice, out, work=None, no_subs=True, lufs=-16, slow=1
         shutil.copy(mixed, out)
     stem = os.path.splitext(mixed)[0] + '_voice.wav'
     acc, errs, _ = speech_accuracy(stem, texts)
-    report(out, work, extra=[f'- Giọng: {voice}', f'- Lời đọc khớp kịch bản: {acc * 100:.1f} %'] +
-           [f'  - "{a}" -> nghe "{b}"' for a, b in errs[:15]])
+    report(out, work, extra=[f'- Giọng: {voice} ({why})', f'- Lời đọc khớp kịch bản: {acc * 100:.1f} %'] +
+           [f'  - "{a}" -> nghe "{b}"' for a, b in errs[:15]] +
+           ['', '| Câu | Khớp | Nghe được |', '|---|---|---|'] + [f"| {r['cau']} | {r['acc'] * 100:.0f}% | {r['nghe']} |" for r in rows])
     if capcut:
         sil = os.path.join(work, 'hinh_khong_tieng.mp4')
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', video, '-an', '-c:v', 'copy', sil], check=True)
@@ -514,7 +732,11 @@ def subs_cmd(video, script, out, work=None, from_audio=False):
         voice, _ = separate(video, work); times = align(voice, texts)
     else:
         times = [(s, e) for s, e, _ in S]
-    cues = subs.make_cues([(s, e, t) for (s, e), t in zip(times, texts)], info['fps'] or 25)
+    if S[0][0] is None or from_audio:
+        import accuracy as _acc
+        cues = subs.make_cues_aligned([(s, e, t) for (s, e), t in zip(times, texts)], voice, info['fps'] or 25, _acc.model())
+    else:
+        cues = subs.make_cues([(s, e, t) for (s, e), t in zip(times, texts)], info['fps'] or 25)
     srt = os.path.splitext(out)[0] + '.srt'; subs.write_srt(cues, srt)
     ass = os.path.join(work, 'phu_de.ass'); subs.write_ass(cues, ass, info['width'], info['height'])
     subs.burn(video, ass, out); log('XONG ->', out, '+', srt)
@@ -526,7 +748,9 @@ def main():
     m = sp.add_parser('make'); m.add_argument('project'); m.add_argument('--out'); m.add_argument('--work')
     m.add_argument('--no-subs', action='store_true'); m.add_argument('--capcut')
     r = sp.add_parser('revoice'); r.add_argument('video'); r.add_argument('--script', required=True)
-    r.add_argument('--voice', default='Thiện Minh'); r.add_argument('--out', required=True); r.add_argument('--work')
+    r.add_argument('--voice', default='auto', help='tên giọng | edge:<ShortName> | clone:<mau.wav> | auto (chọn theo --muc-dich)');
+    r.add_argument('--muc-dich', default='doanh_nghiep'); r.add_argument('--gioi-tinh', choices=['nam', 'nu']); r.add_argument('--vung', choices=['bac', 'trung', 'nam'])
+    r.add_argument('--phat-am', help='JSON từ điển phát âm riêng'); r.add_argument('--do-chinh-xac', type=float, default=0.97); r.add_argument('--out', required=True); r.add_argument('--work')
     r.add_argument('--subs', action='store_true', help='burn phụ đề vào hình'); r.add_argument('--lufs', type=float, default=-16)
     r.add_argument('--slow', type=float, default=1.0); r.add_argument('--capcut'); r.add_argument('--no-music', action='store_true')
     s = sp.add_parser('subs'); s.add_argument('video'); s.add_argument('--script', required=True); s.add_argument('--out', required=True)
@@ -534,7 +758,8 @@ def main():
     q = sp.add_parser('qc'); q.add_argument('video'); q.add_argument('--ref')
     a = ap.parse_args()
     if a.cmd == 'make': make(a.project, a.out, a.work, a.no_subs, a.capcut)
-    elif a.cmd == 'revoice': revoice(a.video, a.script, a.voice, a.out, a.work, not a.subs, a.lufs, a.slow, a.capcut, not a.no_music)
+    elif a.cmd == 'revoice': revoice(a.video, a.script, a.voice, a.out, a.work, not a.subs, a.lufs, a.slow, a.capcut, not a.no_music,
+                                     a.muc_dich, a.gioi_tinh, a.vung, a.phat_am, a.do_chinh_xac)
     elif a.cmd == 'subs': subs_cmd(a.video, a.script, a.out, a.work, a.from_audio)
     else:
         w = os.path.splitext(a.video)[0] + '_qc'; os.makedirs(w, exist_ok=True); report(a.video, w)

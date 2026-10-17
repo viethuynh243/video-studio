@@ -1,10 +1,21 @@
 {
- "_huong_dan": "Mỗi 'canh' một ý lời. nguon: {file,vao,ra} | {anh,hieu_ung} | {mau}. Đường dẫn tương đối tính từ thư mục file này. Tuỳ chọn cảnh video: slowmo (2-5), camera {move: push_in|pull_out|pan_left|pan_right|tilt_up|tilt_down, amount}, on_dinh (true|'tripod'), khung_thong_minh (true: tự bám chủ thể khi tỉ lệ khung khác), shutter (180). Dự án: fps bất kỳ (24/25/30/50/60/120), mau {khop_mau, tham_chieu, look: clean|filmic|teal_orange|warm|cool|bw}, cat_theo_nhac (true|'downbeat').",
+ "_huong_dan": "Mỗi 'canh' một ý lời. nguon: {file,vao,ra} | {anh,hieu_ung} | {mau} | {tim: 'english description'} (cần kho_canh). Giọng: giong 'auto' (theo muc_dich/gioi_tinh/vung/am_sac) | tên giọng | {edge: ...} | {clone: mau.wav}; cảnh có thể có giong riêng hoặc ghi_am. Dựng: phong_cach trang_trong|dien_anh|tai_lieu|nang_dong|mang_xa_hoi; chuyen_canh cut|dissolve|fade_black|dip_white|wipe_left|wipe_right|slide_left|slide_right|zoom_in; khung fill|fit_blur|smart; letterbox 2.39; camera, slowmo, on_dinh; mau, cat_theo_nhac; phat_am, do_chinh_xac, doc_lai.",
  "ten": "ten_video",
  "width": 1920,
  "height": 1080,
  "fps": 25,
- "giong_mac_dinh": "Thiện Minh",
+ "giong": "auto",
+ "muc_dich": "doanh_nghiep",
+ "gioi_tinh": "nam",
+ "vung": "bac",
+ "phong_cach": "trang_trong",
+ "khung": "fill",
+ "phat_am": {
+  "ABC Corp": "ây bi xi co"
+ },
+ "do_chinh_xac": 0.97,
+ "doc_lai": 3,
+ "kho_canh": "nguon/kho_canh.json",
  "nhac": {
   "file": "nguon/nhac.wav",
   "gain": 1.0
@@ -53,8 +64,15 @@
     "hieu_ung": "zoom_in"
    },
    "thoai": "Câu về công trình trong ảnh.",
-   "giong": "Minh Đức",
    "chuyen_canh": "dissolve"
+  },
+  {
+   "id": "C03b",
+   "nguon": {
+    "tim": "aerial view of a highway interchange"
+   },
+   "thoai": "Nút giao liên thông kết nối các tuyến chính.",
+   "chuyen_canh": "slide_left"
   },
   {
    "id": "C04",
@@ -64,7 +82,8 @@
     "ra": 6
    },
    "thoi_luong": 5.0,
-   "slowmo": 2
+   "slowmo": 2,
+   "chuyen_canh": "fade_black"
   }
  ],
  "mau": {

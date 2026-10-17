@@ -60,6 +60,33 @@ def make_cues(lines, fps=25):
     return [(round(a, 3), round(b, 3), t) for a, b, t in cues]
 
 
+def make_cues_aligned(lines, stem, fps=25, model=None):
+    """Like make_cues but cue boundaries come from Whisper word timestamps on the placed voice stem,
+    so every subtitle starts/ends with the words actually spoken. Falls back to make_cues per line."""
+    if model is None:
+        from faster_whisper import WhisperModel
+        model = WhisperModel('medium', device='cpu', compute_type='int8')
+    segs, _ = model.transcribe(stem, language='vi', word_timestamps=True, vad_filter=True)
+    words = [w for s in segs for w in s.words]
+    cues, gap = [], 2.0 / fps
+    for s, e, t in lines:
+        ws = [w for w in words if w.start >= s - 0.25 and w.end <= e + 0.4]
+        ps = chunks(t)
+        if len(ws) < 2 or len(ps) == 1:
+            st = ws[0].start if ws else s; en = ws[-1].end if ws else e
+            cues.append([st, en + 0.15, two_lines(ps[0])] if len(ps) == 1 else None)
+            if len(ps) > 1: cues.pop(); cues += [list(c) for c in make_cues([(st, en, t)], fps)]
+            continue
+        n_ref = [len(re.findall(r'\w+', p)) for p in ps]; tot = sum(n_ref); k0 = 0
+        for j, p in enumerate(ps):
+            k1 = len(ws) if j == len(ps) - 1 else min(len(ws) - 1, max(k0 + 1, round(len(ws) * sum(n_ref[:j + 1]) / tot)))
+            cues.append([ws[k0].start, ws[k1 - 1].end + 0.15, two_lines(p)]); k0 = k1
+    cues = [c for c in cues if c]
+    for a, b in zip(cues, cues[1:]):
+        if b[0] - a[1] < gap: a[1] = b[0] - gap
+    return [(round(a, 3), round(b, 3), t) for a, b, t in cues]
+
+
 def ts(x, srt=True):
     h, m = int(x // 3600), int(x % 3600 // 60); s = x % 60
     return f'{h:02d}:{m:02d}:{s:06.3f}'.replace('.', ',') if srt else f'{h:d}:{m:02d}:{s:05.2f}'
@@ -71,7 +98,7 @@ def write_srt(cues, p):
 
 
 def write_ass(cues, p, W=1920, H=1080, font='Arial', size=None, margin_v=None):
-    size = size or round(H * 0.046); margin_v = margin_v or round(H * 0.055)
+    size = size or round(min(W, H) * 0.056 if H > W else H * 0.056); margin_v = margin_v or round(H * 0.06)
     head = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {W}
@@ -81,7 +108,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Sub,{font},{size},&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,{max(2, round(size / 18))},1,2,80,80,{margin_v},1
+Style: Sub,{font},{size},&H00FFFFFF,&H000000FF,&H00000000,&H78000000,-1,0,0,0,100,100,0,0,1,{max(3, round(size / 14))},2,2,80,80,{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

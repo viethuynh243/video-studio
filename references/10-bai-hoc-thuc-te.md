@@ -34,3 +34,16 @@ Rút từ hai dự án thật: một phim doanh nghiệp 10 phút (bản tiếng
 19. Demucs CLI lỗi thiếu module → gọi bằng Python API.
 20. MCP CapCut `create_draft` lỗi → gọi VectCutAPI HTTP trực tiếp.
 21. Thay bản chính chỉ sau khi duyệt; giữ bản lưu; không xoá file.
+
+## Tự động hoá (nâng cấp 10/2026)
+22. QC phải biết chuyển cảnh đã lên kế hoạch (dip trắng, slide, fade đen, thẻ nền tối): nếu không, mỗi khung chuyển cảnh bị báo "khung lạc".
+    `make` ghi `_plan.json`; `probe_qc`/`critic.py` tách riêng các thay đổi nằm trong đó.
+23. Kiểm lời bằng Whisper phải so với **cả** chữ gốc và cách đọc (từ điển phát âm). ASR viết "BIM", "1.200m", "UBND" theo kiểu của nó;
+    so một phía sẽ báo sai và bắt đọc lại vô ích. Chuẩn hoá số (dấu nghìn) và tách số khỏi đơn vị.
+24. Đọc lại tự động sửa được lỗi thanh ngẫu nhiên nhưng không sửa được giọng đọc sai cố định (vd "tỉnh" thành "tình" ở một giọng).
+    Khi còn dưới ngưỡng sau 3 lần, báo người nghe lại, hoặc đổi cách viết câu, hoặc đổi giọng.
+25. Tự chọn cảnh bằng CLIP với độ khớp < 0,25 hay sai nội dung (đã gặp chọn nhầm slide đồ hoạ cho "hội trường").
+    Luôn cảnh báo và xem contact sheet.
+26. Ngưỡng "khung chết": hình đứng thật có chênh lệch ≈ 0-0,02; trôi chậm/zoom chậm ≈ 0,1. Dùng 0,04, nếu không sẽ phạt nhầm các cảnh trôi nhẹ có chủ ý.
+27. Thẻ màu và đồ hoạ phải có chuyển động vi mô đến khung cuối (ánh sáng trôi, zoom liên tục). Easing dừng hẳn ở cuối tạo khung chết.
+28. Sửa file bằng heredoc trong bash dễ làm hỏng chuỗi `\1`, `\d` (thành ký tự điều khiển). Viết script vá ra file rồi chạy, sau đó quét ký tự điều khiển (`grep -P "[\x01-\x08]"`).

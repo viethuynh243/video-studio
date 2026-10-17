@@ -1,4 +1,4 @@
-﻿# Cài Video Studio (skill + lệnh /video:*) cho Claude Code trên Windows.
+﻿﻿# Cài Video Studio (skill + lệnh /video:*) cho Claude Code trên Windows.
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -36,4 +36,12 @@ if (-not (Test-Path $yunet)) {
 }
 
 ffmpeg -hide_banner -filters 2>$null | Select-String -Pattern ' (ass|rubberband|loudnorm|sidechaincompress) ' | ForEach-Object { $_.Line }
-Write-Host 'Xong. Mở Claude Code, gõ /video: để xem các lệnh.'
+Write-Host 'Playwright (đồ hoạ động bằng HTML)'
+python -m pip install --disable-pip-version-check -q playwright
+python -m playwright install chromium
+
+Write-Host 'MCP server video-studio'
+$srv = (Join-Path $repo 'scripts\mcp_server.py') -replace '\\', '/'
+claude mcp add --scope user video-studio -e PYTHONIOENCODING=utf-8 -- python $srv
+
+Write-Host 'Xong. Mở Claude Code, gõ /video: để xem các lệnh; công cụ MCP: mcp__video-studio__*.'
