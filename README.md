@@ -47,13 +47,33 @@ Kết quả chạy thử (10/2026):
 
 ## Công cụ MCP cho Claude
 
-`scripts/mcp_server.py` biến Video Studio thành 19 công cụ mà Claude gọi trực tiếp, không phải chạy lệnh shell.
+`scripts/mcp_server.py` biến Video Studio thành 21 công cụ mà Claude gọi trực tiếp, không phải chạy lệnh shell.
 
 - **Công cụ trả kết quả ngay**: probe, QC, contact sheet, gợi ý và danh sách giọng, xem trước phát âm, tìm cảnh, ảnh tĩnh của đồ hoạ.
 - **Việc chạy lâu** chạy nền và trả về `job_id`: dựng phim, lồng tiếng, phụ đề, chuyển fps, đổi khung, chống rung, đồ hoạ động, bộ phê bình, mẫu giọng.
   Theo dõi bằng `job_status` / `job_list`; job vẫn giữ trạng thái kể cả khi server khởi động lại.
 
 Đăng ký: `claude mcp add --scope user video-studio -e PYTHONIOENCODING=utf-8 -- python <repo>/scripts/mcp_server.py` (`install.ps1` tự làm).
+
+## Chống "AI slop"
+
+`scripts/slop_guard.py` + lệnh `/video:slop` bắt những chỗ kịch bản và bản dựng "nghe như máy viết", rồi để Claude đề xuất cách sửa.
+
+- **Đo tất định trước** (không LLM, chạy lại cho cùng kết quả):
+  - mọi số trên hình, lời đọc và đồ hoạ phải có trong `facts`, hoặc suy ra một bước từ số có nguồn (hiện kèm phép suy), hoặc khai `[tính: a × b = c]` và được kiểm lại;
+  - khẳng định so sánh nhất không có căn cứ, cụm sáo rỗng, từ đệm, gạch dài, nhịp câu đều, câu mở đầu lặp;
+  - dựng đều như máy: cảnh dài bằng nhau, một kiểu chuyển cảnh khắp nơi, chữ trên mọi cảnh, mở đầu bằng thẻ màu.
+- **Ba mức** (phải sửa / cảnh báo / ghi chú) và **chỉ số tách riêng**, không gộp thành một điểm.
+- **Sổ luật khách**: câu sửa của khách được chép nguyên văn, kèm người nói, ngày, phạm vi, rồi tự kiểm trên mọi phim sau. Sổ để ngoài repo.
+- **Claude chỉ xem phần bị gắn cờ**: một agent mới, không biết lập luận của người dựng, đề xuất viết lại. Bản sửa áp vào bản sao,
+  `compare` đo lại và chỉ **nhận** khi mục phải sửa giảm, không sinh lỗi mới, chỉ số không xấu đi.
+- `make` và `critic.py` dùng chung bộ kiểm này. Ví dụ chạy được: `examples/vi_du_slop/`:
+  ```bash
+  python scripts/slop_guard.py script examples/vi_du_slop/kich_ban.txt --facts examples/vi_du_slop/facts.md
+  python scripts/slop_guard.py compare examples/vi_du_slop/kich_ban.txt examples/vi_du_slop/kich_ban_v2_sai.txt --facts examples/vi_du_slop/facts.md
+  python scripts/slop_guard.py compare examples/vi_du_slop/kich_ban.txt examples/vi_du_slop/kich_ban_v2_dung.txt --facts examples/vi_du_slop/facts.md
+  ```
+  Bản gốc bị CHẶN (số 870 không nguồn, phép tính sai, "hàng đầu" không căn cứ). Bản sửa thêm một năm không có nguồn bị KHÔNG NHẬN. Bản sửa đúng được NHẬN.
 
 ## Đạo diễn motion và phê bình độc lập
 
@@ -113,6 +133,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 | `/video:qc <video> [kịch bản]` | Kiểm tra trước khi giao, bảng Đạt/Chưa đạt kèm số đo |
 | `/video:voices [lời mẫu] [lọc]` | Nghe thử và chọn giọng đọc tiếng Việt |
 | `/video:fix <video> [mô tả lỗi]` | Sửa giật nhịp, đổi fps 24-120, slow-mo, rung, khung lạc, chớp, lệch tiếng, âm lượng |
+| `/video:slop <project/kịch bản> [facts] [luật]` | Soi "AI slop", Claude đề xuất sửa, đo lại độc lập rồi mới nhận |
 | `/video:capcut <video> [tên nháp]` | Tạo bản nháp CapCut desktop để chỉnh tay |
 
 Không cần gõ lệnh cũng được: nói *"lồng tiếng lại video này bằng giọng nam miền Bắc"* thì skill `video-studio` tự chạy.
@@ -122,11 +143,11 @@ Không cần gõ lệnh cũng được: nói *"lồng tiếng lại video này b
 ```
 SKILL.md                  bộ não điều hướng cho Claude
 commands/*.md             các lệnh /video:*
-references/01..10         kiến thức nghề và bài học thực tế
+references/01..13         kiến thức nghề, bài học thực tế, chống AI slop
 scripts/autovideo.py      cửa chính: make / revoice / subs / qc
 scripts/*.py              công cụ thành phần (QC, TTS, mix, phụ đề, Demucs, CapCut, nhịp khung, storyboard)
-templates/                project_make.json (dựng mới), storyboard.json
-examples/                 demo_make.json, vi_du_loi.txt
+templates/                project_make.json (dựng mới), storyboard.json, luat_khach.json (mẫu sổ luật)
+examples/                 demo_make.json, vi_du_loi.txt, vi_du_slop/
 ```
 
 ## Giọng đọc

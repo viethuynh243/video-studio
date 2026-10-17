@@ -47,3 +47,7 @@ Rút từ hai dự án thật: một phim doanh nghiệp 10 phút (bản tiếng
 26. Ngưỡng "khung chết": hình đứng thật có chênh lệch ≈ 0-0,02; trôi chậm/zoom chậm ≈ 0,1. Dùng 0,04, nếu không sẽ phạt nhầm các cảnh trôi nhẹ có chủ ý.
 27. Thẻ màu và đồ hoạ phải có chuyển động vi mô đến khung cuối (ánh sáng trôi, zoom liên tục). Easing dừng hẳn ở cuối tạo khung chết.
 28. Sửa file bằng heredoc trong bash dễ làm hỏng chuỗi `\1`, `\d` (thành ký tự điều khiển). Viết script vá ra file rồi chạy, sau đó quét ký tự điều khiển (`grep -P "[\x01-\x08]"`).
+29. Đối chiếu số với nguồn bằng sai số tương đối (0,5 %) cho qua cả năm bịa (2010 khớp 2000). Chỉ nhận số làm tròn theo số chữ số có nghĩa,
+    năm không bao giờ được làm tròn; số chỉ khớp qua một phép suy thì hiện kèm phép suy để người xác nhận.
+30. Người duyệt mù chỉ nhận các mục bị gắn cờ, nên mỗi mục phải mang theo **câu đầy đủ và vị trí** của nó. Có lần cờ "phép tính sai"
+    thiếu câu, người duyệt không sửa được. Bản sửa của người duyệt có thể thêm lỗi mới (vd. một năm không nguồn): luôn chạy `compare` trước khi nhận.

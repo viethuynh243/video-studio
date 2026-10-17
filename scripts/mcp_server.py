@@ -222,6 +222,31 @@ def motion_stills(html: str, out_png: str, times: list[float], params_json: str 
 
 
 @mcp.tool()
+def slop_check(project_or_script: str, facts: list[str] = [], rules: list[str] = []) -> dict:
+    """Anti AI-slop, deterministic (no LLM): clichés/filler, unsourced superlatives, numbers not grounded in the fact files
+    (derived numbers are shown with their derivation), wrong [tính: ...] sums, robotic sentence rhythm, repeated openers,
+    uniform editing (equal shot lengths, one transition everywhere, text on every scene), client rule ledger.
+    Levels: chan (must fix) / canh_bao / ghi_chu. Metrics are separate, never blended. A project's own 'facts'/'luat' keys
+    are used when facts/rules are empty. Send only the flagged items to a FRESH reviewer agent, then slop_compare."""
+    import slop_guard
+    if project_or_script.endswith('.json'):
+        d = json.load(open(project_or_script, encoding='utf8'))
+        if isinstance(d, dict) and 'canh' in d and not (facts or rules):
+            f2, r2, _ = slop_guard.project_sources(d, os.path.dirname(os.path.abspath(project_or_script)))
+            facts, rules = facts or f2, rules or r2
+    return slop_guard.run_all(project_or_script, facts or None, rules or None)
+
+
+@mcp.tool()
+def slop_compare(before: str, after: str, facts: list[str] = [], rules: list[str] = []) -> dict:
+    """Independent re-check of a rewrite (script or project): accept only if blocking findings went down, no new blocking
+    finding appeared and no rate metric got worse. The reviewer that wrote the rewrite never certifies it."""
+    import slop_guard
+    ok, why = slop_guard.compare(slop_guard.run_all(before, facts or None, rules or None), slop_guard.run_all(after, facts or None, rules or None))
+    return {'nhan': ok, 'ly_do': why}
+
+
+@mcp.tool()
 def critic_kit(film: str, project_json: str = '', facts_md: str = '') -> dict:
     """Build the independent-review kit (contact/phone/strips + hard checks + rubric). Then give the folder to a FRESH
     read-only agent to score 1-10 per category (default verdict: revise) - judge != builder."""

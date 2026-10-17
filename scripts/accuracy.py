@@ -1,7 +1,7 @@
 """Accuracy guard for narration: pronunciation dictionary + per-line listen-back + automatic re-takes.
 
   python accuracy.py check  LINES.json WAV_DIR TAG              # score each <TAG>_<i>.wav against its text
-  python accuracy.py dict   "TEDI là đơn vị tư vấn"             # show how the dictionary rewrites a line
+  python accuracy.py dict   "ABC là đơn vị tư vấn"              # show how the dictionary rewrites a line
 
 Pipeline used by autovideo.py:
   1. apply_dict(): rewrite words the TTS cannot say (acronyms, brand names, foreign words) with a spoken form.

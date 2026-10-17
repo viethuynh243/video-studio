@@ -15,13 +15,14 @@ quyết định đúng khi lập storyboard và khi đọc báo cáo QC.
 
 `/video:plan` bàn ý tưởng - kịch bản - phân cảnh - ánh sáng · `/video:make` dựng phim mới · `/video:revoice` lồng tiếng lại ·
 `/video:subs` phụ đề · `/video:reframe` đổi khung dọc/vuông · `/video:library` kho cảnh · `/video:qc` kiểm tra ·
-`/video:voices` chọn giọng theo mục đích · `/video:fix` sửa giật/fps/rung · `/video:critic` phê bình độc lập · `/video:capcut` đẩy sang CapCut.
+`/video:voices` chọn giọng theo mục đích · `/video:fix` sửa giật/fps/rung · `/video:critic` phê bình độc lập · `/video:slop` soi và sửa "AI slop" · `/video:capcut` đẩy sang CapCut.
 Người dùng nói tự nhiên (không gõ lệnh) thì vẫn làm theo bảng dưới.
 
 ## 0b. Công cụ MCP `video-studio` (ưu tiên khi có)
 
 Khi các tool `mcp__video-studio__*` có trong phiên, gọi thẳng chúng thay vì chạy script bằng Bash:
-- **Nhanh**: `video_probe`, `video_qc`, `contact_sheet`, `voices_suggest`, `voices_catalogue`, `pronunciation_preview`, `shot_search`, `motion_stills`.
+- **Nhanh**: `video_probe`, `video_qc`, `contact_sheet`, `voices_suggest`, `voices_catalogue`, `pronunciation_preview`, `shot_search`, `motion_stills`,
+  `slop_check`, `slop_compare`.
 - **Việc dài** (trả `job_id`, theo dõi bằng `job_status` / `job_list`): `make_video`, `revoice_video`, `subtitle_video`, `convert_fps`,
   `reframe_video`, `stabilize_video`, `motion_graphic`, `critic_kit`, `voice_samples`.
 Đăng ký một lần: `claude mcp add --scope user video-studio -e PYTHONIOENCODING=utf-8 -- python <repo>/scripts/mcp_server.py`.
@@ -41,6 +42,7 @@ Khi các tool `mcp__video-studio__*` có trong phiên, gọi thẳng chúng thay
 | Xuất theo nền tảng, dò nhịp nhạc | `deliver.py export <preset> / beats` |
 | Bàn ý tưởng, phân cảnh, ánh sáng, góc máy trước khi dựng | `/video:plan` + `references/11-dien-anh-cao-cap.md` |
 | Bản đồ tuyến động, thẻ chương, đồ hoạ số liệu (motion graphics bằng code) | `motion_html.py stills/render` + `templates/motion/*.html`, hoặc cảnh `"nguon": {"html": ...}` |
+| Kịch bản/phim nghe "giọng AI": sáo rỗng, số không nguồn, khẳng định suông, nhịp đều, hiệu ứng tràn lan | `/video:slop` (`slop_guard.py` đo → agent mới đề xuất sửa → `compare` đo lại) |
 | Chấm phim trước khi gửi (người chấm khác người dựng) | `/video:critic` (`critic.py` + agent mới, chấm đến khi mọi hạng mục ≥ 8) |
 | Chọn giọng đọc theo mục đích | `voices.py suggest --muc-dich thoi_su --gioi-tinh nu`, sinh mẫu 2-3 giọng gợi ý, gửi người dùng nghe |
 | Đưa sang CapCut để tinh chỉnh tay | thêm `--capcut TEN_NHAP` vào `make`/`revoice`, hoặc `capcut_api.py build --spec` |
@@ -70,6 +72,9 @@ LUFS, % lời khớp kịch bản). **Đọc báo cáo trước khi gửi** và 
   (khung bám chủ thể). Chuyển cảnh từng cảnh: `cut`, `dissolve`, `fade_black`, `dip_white`, `wipe_left/right`, `slide_left/right`, `zoom_in`.
   Khung: `"khung"`: `fill` (cắt đầy) | `fit_blur` (giữ trọn hình, nền mờ) | `smart` (bám chủ thể). `"letterbox": 2.39`. Mọi tuỳ chọn ghi đè được ở từng cảnh.
 - **Đồ hoạ động**: `"nguon": {"html": "templates/motion/route_map.html", "params": {...}}` (bản đồ tuyến vẽ dần, thẻ chương...). `make` tự xuất thêm bản **chỉ có nhạc** `_chi_nhac.mp4`. Brief đạo diễn + `facts.md` trước khi dựng phim lớn (`references/12`).
+- **Chống AI slop**: `"facts": "facts.md"` (mỗi số + câu gốc + tài liệu + ngày) và `"luat": ["~/.video_studio/luat/<khach>.json"]`
+  (sổ luật khách, để ngoài repo). `make` tự kiểm và ghi mục "Chống AI slop" vào báo cáo; `"chan_khi_slop": true` để dừng khi còn số bịa/vi phạm luật.
+  Khách sửa tay câu nào thì chép nguyên văn vào sổ luật (`slop_guard.py ghi`) để phim sau tự bắt (`references/13`).
 - **Tự chọn cảnh**: `"kho_canh": "kho.json"` (từ `shot_select.py scan --clip`) và `"nguon": {"tim": "aerial view of a highway at sunset"}`
   → lấy cảnh khớp nhất, đủ dài, chưa dùng, điểm chất lượng cao. Viết mô tả tìm bằng tiếng Anh.
 
@@ -82,6 +87,8 @@ LUFS, % lời khớp kịch bản). **Đọc báo cáo trước khi gửi** và 
 5. **Không nhập mật khẩu/khoá API** thay người dùng.
 6. Tải mô hình chỉ từ nguồn gốc, ưu tiên `.safetensors`, cài venv riêng.
 7. Giao tiếp tiếng Việt.
+8. **Không giao số bịa**: mọi số trên hình/lời đọc phải có trong `facts` hoặc khai `[tính: ...]`. Bản sửa do agent viết chỉ được nhận sau khi
+   `slop_guard.py compare` đo lại (người viết không tự xác nhận).
 
 ## 4. Nạp tham chiếu khi cần
 
@@ -98,6 +105,7 @@ LUFS, % lời khớp kịch bản). **Đọc báo cáo trước khi gửi** và 
 | Phim AI / micro-drama | `references/09-phim-ai-pipeline.md` |
 | Bài học đã trả giá | `references/10-bai-hoc-thuc-te.md` |
 | Ánh sáng, ống kính, khẩu/màn trập/ISO/ND theo tình huống, prompt video AI, góc máy, màu, âm thanh, dựng | `references/11-dien-anh-cao-cap.md` |
+| Chống "AI slop": số có gốc, sổ luật khách, người duyệt mù, đo lại trước khi nhận | `references/13-chong-ai-slop.md` |
 | Brief đạo diễn, luật chống "chuyển động kiểu AI", đồ hoạ bằng code, vòng phê bình, dự án lớn (GES, 3D, hiện trạng) | `references/12-dao-dien-motion-va-phe-binh.md` |
 
 ## 5. Bộ script
@@ -108,8 +116,9 @@ LUFS, % lời khớp kịch bản). **Đọc báo cáo trước khi gửi** và 
 | `voices.py` | Hồ sơ đo từng giọng, gợi ý giọng theo mục đích, nhiều nguồn giọng (VieNeu, Edge, nhân bản, ghi âm) |
 | `accuracy.py` | Từ điển phát âm, nghe lại từng câu, tự đọc lại câu sai |
 | `motion_html.py` | Đồ hoạ động bằng HTML + `seek(t)` (Playwright), motion blur sub-frame tự động |
-| `critic.py` | Bộ tư liệu chấm độc lập: contact/phone/strip, khung chết, chữ đủ lâu, số có nguồn |
-| `mcp_server.py` | MCP server: 19 công cụ (nhanh + hàng đợi job) để Claude gọi trực tiếp |
+| `critic.py` | Bộ tư liệu chấm độc lập: contact/phone/strip, khung chết, chữ đủ lâu, kiểm slop (cùng `slop_guard`) |
+| `slop_guard.py` | Chống AI slop tất định: số có nguồn/suy ra, sáo rỗng, khẳng định suông, nhịp, dựng đều, sổ luật khách; `compare` nhận/không nhận bản sửa |
+| `mcp_server.py` | MCP server: 21 công cụ (nhanh + hàng đợi job) để Claude gọi trực tiếp |
 | `probe_qc.py` | Kiểm kê nguồn / QC phim (khung lạc, chớp, khung lặp, đứng hình, giật, cadence, LUFS, viền đen) |
 | `contact_sheet.py` | Tờ liên hoàn 3 khung/shot để soát mắt |
 | `fps_convert.py` | Bộ chuyển fps 24-120, slow-mo, motion blur 180°, phát hiện khung đệm (RIFE/flow) |

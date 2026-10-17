@@ -89,7 +89,7 @@ Dữ liệu minh hoạ phải ghi rõ "Minh hoạ" hoặc "Không theo tỉ lệ
 - Ước lượng thời gian bằng bảng hạng mục: trạng thái, phần còn lại, phần chặn đường găng. Báo cả phương án rút ngắn.
   Ví dụ: tăng tỉ lệ cảnh GES, chỉ dùng 3D cho những gì GES không thể hiện được.
 
-**Lời đọc**: tên tuyến ghép ("Bảo Hà - Lai Châu") hay bị đọc liền. Viết "Bảo Hà, Lai Châu" và nghe lại từng câu (`accuracy.py`).
+**Lời đọc**: tên tuyến ghép ("Địa danh A - Địa danh B") hay bị đọc liền. Viết "Địa danh A, Địa danh B" và nghe lại từng câu (`accuracy.py`).
 Nhịp cắt quảng cáo 1,4-3,5 s **không** hợp phim báo cáo; phim báo cáo dùng 3-7 s.
 
 ## 6. Quy tắc trung thực

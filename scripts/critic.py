@@ -8,7 +8,7 @@ Writes to DIR (default <film>_critic/):
 Hard checks:
   - dead frames: picture frozen longer than --hold seconds (except the final hold), measured on the image
   - on-screen text from the project shown long enough (>= 0.3 s per word, >= 1.5 s total) and no em dash
-  - every number in on-screen text / narration exists in facts.md (sourced figures only)
+  - anti AI-slop checks from slop_guard.py (numbers grounded in facts, clichés, unsourced claims, uniform editing, client rules)
   - loudness / true peak, black stretches, stray frames (from probe_qc)
 The reviewer (a separate read-only agent, default verdict = REJECT) then scores 1-10 per category, lists the
 3 worst problems with timestamps, and does the muted test: describe the film in one sentence from the frames alone.
@@ -96,19 +96,19 @@ def main():
     lines.append(f'- Khung chết > {a.hold:g} s (trừ khung giữ cuối): **{len(dead)}** {dead if dead else ""}')
     if a.project:
         P = json.load(open(a.project, encoding='utf8')); C = P.get('canh', [])
-        facts = open(a.facts, encoding='utf8').read() if a.facts else ''
-        fact_nums = numbers(facts)
         for c in C:
             txt = c.get('chu_tren_hinh') or ''
-            if '—' in txt + (c.get('thoai') or ''): lines.append(f'- {c["id"]}: có gạch dài "—"')
             if txt:
                 need = max(1.5, 0.3 * len(txt.split()))
                 if c.get('thoi_luong') and float(c['thoi_luong']) < need:
                     lines.append(f'- {c["id"]}: chữ "{txt}" cần >= {need:.1f} s trên hình')
-            if a.facts:
-                miss = (numbers(txt) | numbers(c.get('thoai'))) - fact_nums
-                if miss: lines.append(f'- {c["id"]}: số **chưa có nguồn** trong facts.md: {sorted(miss)}')
-        if not a.facts and any(numbers(c.get('chu_tren_hinh')) for c in C):
+        import slop_guard
+        sfacts, srules, _ = slop_guard.project_sources(P, os.path.dirname(os.path.abspath(a.project)))
+        sfacts = [a.facts] if a.facts else sfacts
+        slop = slop_guard.run_project(P, sfacts, srules)
+        json.dump(slop, open(os.path.join(out, 'slop.json'), 'w', encoding='utf8'), ensure_ascii=False, indent=1)
+        lines += ['', '## Chống AI slop (hệ 0)'] + [l.replace('## ', '### ') for l in slop_guard.to_md(slop, '').split('\n')[2:]]
+        if not sfacts and any(numbers(c.get('chu_tren_hinh')) for c in C):
             lines.append('- Có số liệu trên hình nhưng chưa có facts.md (mỗi con số + câu gốc + nguồn + ngày) -> chưa được giao')
     lines += ['', '## Tư liệu cho người chấm', '- contact.png, phone.png, ' + ', '.join(os.path.basename(f) for f in os.listdir(out) if f.startswith('strip_')), '', RUBRIC]
     open(os.path.join(out, 'CRITIC.md'), 'w', encoding='utf8').write('\n'.join(lines))

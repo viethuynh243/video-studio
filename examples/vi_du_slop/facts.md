@@ -1,0 +1,4 @@
+- Đã thực hiện 120 dự án (hồ sơ năng lực 2025).
+- Tuyến dài 45 km; thời gian di chuyển 1,5 giờ.
+- Tổng vốn 3.500 tỷ đồng, ngân sách 2.000 tỷ.
+- 500 xe/giờ giờ cao điểm.

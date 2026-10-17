@@ -1,0 +1,12 @@
+[
+ {"id": "L001", "loai": "cam_chu", "mau": "hàng đầu|số 1", "dich": ["loi_doc", "chu_tren_hinh"], "muc": "chan",
+  "pham_vi": "chung", "nguon": "Câu sửa nguyên văn của khách, dán vào đây", "nguoi": "khách", "ngay": "2026-01-01"},
+ {"id": "L002", "loai": "giong_vung", "gia_tri": "bac", "muc": "chan", "pham_vi": "khach:vi_du",
+  "nguon": "Phim doanh nghiệp dùng giọng miền Bắc", "ngay": "2026-01-01"},
+ {"id": "L003", "loai": "toi_da_canh", "gia_tri": 6, "muc": "canh_bao", "pham_vi": "chung",
+  "nguon": "Cảnh không quá 6 giây", "ngay": "2026-01-01"},
+ {"id": "L004", "loai": "cam_nguon", "mau": "stock|shutterstock", "muc": "canh_bao", "pham_vi": "chung",
+  "nguon": "Không dùng cảnh stock", "ngay": "2026-01-01", "thay_boi": null},
+ {"id": "L005", "loai": "khac", "muc": "canh_bao", "pham_vi": "chung",
+  "nguon": "Luật chưa kiểm tự động được - người dựng tự soát", "ngay": "2026-01-01"}
+]

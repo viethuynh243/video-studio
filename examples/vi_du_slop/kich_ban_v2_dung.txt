@@ -1,0 +1,6 @@
+Công ty Mẫu thiết kế cầu và đường bộ.
+Đến nay, công ty đã thực hiện 120 dự án trên khắp cả nước.
+Tuyến đường dài 45 km.
+Thời gian đi hết tuyến còn 90 phút [tính: 1,5 × 60 = 90].
+Tổng vốn đầu tư 3.500 tỷ đồng, trong đó ngân sách 2.000 tỷ, phần còn lại 1.500 tỷ [tính: 3.500 - 2.000 = 1.500].
+Giờ cao điểm, 500 xe đi qua mỗi giờ.

@@ -1,11 +1,17 @@
 {
- "_huong_dan": "Mỗi 'canh' một ý lời. nguon: {file,vao,ra} | {anh,hieu_ung} | {mau} | {tim: 'english description'} (cần kho_canh). Giọng: giong 'auto' (theo muc_dich/gioi_tinh/vung/am_sac) | tên giọng | {edge: ...} | {clone: mau.wav}; cảnh có thể có giong riêng hoặc ghi_am. Dựng: phong_cach trang_trong|dien_anh|tai_lieu|nang_dong|mang_xa_hoi; chuyen_canh cut|dissolve|fade_black|dip_white|wipe_left|wipe_right|slide_left|slide_right|zoom_in; khung fill|fit_blur|smart; letterbox 2.39; camera, slowmo, on_dinh; mau, cat_theo_nhac; phat_am, do_chinh_xac, doc_lai.",
+ "_huong_dan": "Mỗi 'canh' một ý lời. nguon: {file,vao,ra} | {anh,hieu_ung} | {mau} | {tim: 'english description'} (cần kho_canh). Giọng: giong 'auto' (theo muc_dich/gioi_tinh/vung/am_sac) | tên giọng | {edge: ...} | {clone: mau.wav}; cảnh có thể có giong riêng hoặc ghi_am. Dựng: phong_cach trang_trong|dien_anh|tai_lieu|nang_dong|mang_xa_hoi; chuyen_canh cut|dissolve|fade_black|dip_white|wipe_left|wipe_right|slide_left|slide_right|zoom_in; khung fill|fit_blur|smart; letterbox 2.39; camera, slowmo, on_dinh; mau, cat_theo_nhac; phat_am, do_chinh_xac, doc_lai. Chống AI slop: facts (file nguồn số liệu, mỗi số + câu gốc + tài liệu + ngày), luat (sổ luật khách, để NGOÀI repo, vd ~/.video_studio/luat/<khach>.json), khach, chan_khi_slop (true = dừng dựng khi có lỗi phải sửa).",
  "ten": "ten_video",
  "width": 1920,
  "height": 1080,
  "fps": 25,
  "giong": "auto",
  "muc_dich": "doanh_nghiep",
+ "khach": "vi_du",
+ "facts": "facts.md",
+ "luat": [
+  "~/.video_studio/luat/vi_du.json"
+ ],
+ "chan_khi_slop": false,
  "gioi_tinh": "nam",
  "vung": "bac",
  "phong_cach": "trang_trong",

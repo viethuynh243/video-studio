@@ -489,11 +489,17 @@ def make(proj_path, out=None, work=None, no_subs=False, capcut=None):
     for c in C:
         if P.get('khung') and 'khung' not in c: c['khung'] = P['khung']
     warn = P.setdefault('_canh_bao', [])
-    if C and (C[0].get('nguon') or {}).get('mau') and P.get('phong_cach') in ('nang_dong', 'mang_xa_hoi', 'quang_cao', None):
-        warn.append('Mở đầu bằng thẻ màu trơn: 3 giây đầu nên là hình mạnh nhất (flycam/cảnh đẹp nhất), chữ đặt lên hình')
     for c in C:
         sn = set(re.findall(r'\d[\d.,]*', c.get('chu_tren_hinh') or '')) - set(re.findall(r'\d[\d.,]*', c.get('thoai') or ''))
-        if sn and c.get('thoai'): warn.append(f"{c['id']}: số trên hình {sorted(sn)} không có trong lời đọc - kiểm tra nguồn/đồng bộ")
+        if sn and c.get('thoai'): warn.append(f"{c['id']}: số trên hình {sorted(sn)} không có trong lời đọc - kiểm tra đồng bộ")
+    # anti AI-slop (deterministic): script clichés, unsourced numbers/claims, uniform editing, client rule ledger
+    import slop_guard
+    sfacts, srules, smiss = slop_guard.project_sources(P, root)
+    slop = slop_guard.run_project(P, sfacts, srules)
+    slop['_thieu'] = smiss
+    json.dump(slop, open(os.path.join(work, 'slop.json'), 'w', encoding='utf8'), ensure_ascii=False, indent=1)
+    if P.get('chan_khi_slop') and slop['ket_luan'] == 'CHẶN':
+        raise SystemExit(slop_guard.to_md(slop, P.get('ten', '')) + '\n\nDừng vì chan_khi_slop=true. Sửa theo /video:slop rồi dựng lại.')
     td = float(P.get('chuyen_canh_s', 0.5)); T = int(round(td * fps))
     # 1. voices: per scene / character / project / by purpose; pronunciation dictionary; listen-back + re-takes
     import accuracy
@@ -653,6 +659,10 @@ def make(proj_path, out=None, work=None, no_subs=False, capcut=None):
         extra += ['', '## Giọng đã chọn'] + [f'- {v}: {w}' for v, w in vnote.items()]
     if P.get('_canh_bao'):
         extra += ['', '## Cảnh báo dựng'] + [f'- {w}' for w in P['_canh_bao']]
+    sm = slop_guard.to_md(slop, P.get('ten', '')).split('\n', 2)[2]
+    extra += ['', '## Chống AI slop (hệ 0 - tất định; xử lý bằng /video:slop)'] + [l.replace('## ', '### ') for l in sm.split('\n')]
+    if not sfacts: extra.append('- Chưa có `facts` trong project: số liệu chưa được đối chiếu nguồn')
+    if smiss: extra.append(f'- Không thấy file: {smiss}')
     if P.get('_canh_can_xem'):
         extra += ['', f"## Cảnh tự chọn cần xem bằng mắt (độ khớp thấp): {', '.join(P['_canh_can_xem'])}"]
     if mus and P.get('ban_chi_nhac', True):                 # deliverable: picture + music only (no voice)
