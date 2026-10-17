@@ -1,0 +1,65 @@
+{
+ "_huong_dan": "Ví dụ: đặt nguồn của bạn vào thư mục nguon/ cạnh file này rồi chạy: python scripts/autovideo.py make examples/demo_make.json --out demo.mp4",
+ "ten": "demo_dung_tu_dong",
+ "width": 1920,
+ "height": 1080,
+ "fps": 25,
+ "giong_mac_dinh": "Thiện Minh",
+ "nhac": {
+  "file": "nguon/nhac_nen.wav",
+  "gain": 1.0
+ },
+ "phu_de": true,
+ "lufs": -16,
+ "chuyen_canh_s": 0.6,
+ "mau": {
+  "khop_mau": true,
+  "look": "filmic"
+ },
+ "cat_theo_nhac": true,
+ "canh": [
+  {
+   "id": "C01",
+   "nguon": {
+    "mau": "#0E2440"
+   },
+   "chu_tren_hinh": "BẢN DỰNG THỬ TỰ ĐỘNG",
+   "vi_tri_chu": "center",
+   "thoai": "Đây là bản dựng thử, được tạo tự động từ storyboard.",
+   "chuyen_canh": "dissolve"
+  },
+  {
+   "id": "C02",
+   "nguon": {
+    "anh": "nguon/anh_cao_toc.jpg",
+    "hieu_ung": "zoom_in"
+   },
+   "chu_tren_hinh": "Tuyến cao tốc 120 km",
+   "thoai": "Tuyến cao tốc dài khoảng 120 km, quy mô 4 làn xe.",
+   "chuyen_canh": "dissolve"
+  },
+  {
+   "id": "C03",
+   "nguon": {
+    "anh": "nguon/anh_cau.jpg",
+    "hieu_ung": "pan_right"
+   },
+   "chu_tren_hinh": "Cầu vượt sông",
+   "thoai": "Cây cầu vượt sông là điểm nhấn của tuyến.",
+   "chuyen_canh": "cut"
+  },
+  {
+   "id": "C04",
+   "nguon": {
+    "file": "nguon/flycam.mp4",
+    "vao": 12.0,
+    "ra": 20.0
+   },
+   "camera": {
+    "move": "push_in",
+    "amount": 0.06
+   },
+   "thoi_luong": 5.0
+  }
+ ]
+}

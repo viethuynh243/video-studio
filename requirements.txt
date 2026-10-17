@@ -1,0 +1,10 @@
+numpy
+opencv-python
+soundfile
+librosa
+Pillow
+faster-whisper
+torch
+demucs
+transformers
+openpyxl

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*_work/
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.m4a
+*.srt
+*.ass
+*_qc/
+.venv/
+venv*/

@@ -1,0 +1,77 @@
+{
+ "_huong_dan": "Mỗi 'canh' một ý lời. nguon: {file,vao,ra} | {anh,hieu_ung} | {mau}. Đường dẫn tương đối tính từ thư mục file này. Tuỳ chọn cảnh video: slowmo (2-5), camera {move: push_in|pull_out|pan_left|pan_right|tilt_up|tilt_down, amount}, on_dinh (true|'tripod'), khung_thong_minh (true: tự bám chủ thể khi tỉ lệ khung khác), shutter (180). Dự án: fps bất kỳ (24/25/30/50/60/120), mau {khop_mau, tham_chieu, look: clean|filmic|teal_orange|warm|cool|bw}, cat_theo_nhac (true|'downbeat').",
+ "ten": "ten_video",
+ "width": 1920,
+ "height": 1080,
+ "fps": 25,
+ "giong_mac_dinh": "Thiện Minh",
+ "nhac": {
+  "file": "nguon/nhac.wav",
+  "gain": 1.0
+ },
+ "phu_de": true,
+ "lufs": -16,
+ "chuyen_canh_s": 0.6,
+ "mo_dau_fade": true,
+ "ket_fade": true,
+ "lead_s": 0.35,
+ "tail_s": 0.55,
+ "slow": 1.0,
+ "canh": [
+  {
+   "id": "C01",
+   "nguon": {
+    "mau": "#0E2440"
+   },
+   "chu_tren_hinh": "TÊN DỰ ÁN",
+   "vi_tri_chu": "center",
+   "thoai": "Câu mở đầu giới thiệu dự án.",
+   "chuyen_canh": "dissolve"
+  },
+  {
+   "id": "C02",
+   "nguon": {
+    "file": "nguon/flycam.mp4",
+    "vao": 12.0,
+    "ra": 20.0
+   },
+   "toc_do": 1.0,
+   "chu_tren_hinh": "119 km · 4 làn · 100 km/h",
+   "vi_tri_chu": "top",
+   "thoai": "Tuyến dài khoảng 119 km, quy mô 4 làn xe, tốc độ thiết kế 100 km/h.",
+   "chuyen_canh": "cut",
+   "camera": {
+    "move": "push_in",
+    "amount": 0.06
+   },
+   "on_dinh": false
+  },
+  {
+   "id": "C03",
+   "nguon": {
+    "anh": "nguon/anh_cau.jpg",
+    "hieu_ung": "zoom_in"
+   },
+   "thoai": "Câu về công trình trong ảnh.",
+   "giong": "Minh Đức",
+   "chuyen_canh": "dissolve"
+  },
+  {
+   "id": "C04",
+   "nguon": {
+    "file": "nguon/ket.mp4",
+    "vao": 0,
+    "ra": 6
+   },
+   "thoi_luong": 5.0,
+   "slowmo": 2
+  }
+ ],
+ "mau": {
+  "khop_mau": true,
+  "tham_chieu": "C02",
+  "look": "filmic",
+  "do_manh_khop": 0.7
+ },
+ "cat_theo_nhac": true
+}

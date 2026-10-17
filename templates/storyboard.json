@@ -1,0 +1,63 @@
+{
+  "du_an": "du_an_cao_toc_30s",
+  "loai": "phim_du_an",
+  "ty_le": "16:9",
+  "fps": 25,
+  "giong_mac_dinh": "Thiện Minh",
+  "nhan_vat": {
+    "_vi_du_phim_ai": {
+      "ten": "Anh Minh",
+      "anh_tham_chieu": [
+        "ref/minh_front.png",
+        "ref/minh_34.png"
+      ],
+      "giong": "Minh Đức",
+      "trang_phuc": "áo sơ mi trắng, quần âu xám",
+      "lora": null
+    }
+  },
+  "canh": [
+    {
+      "id": "C01",
+      "thoi_luong": 5.3,
+      "thoai": "Dự án đầu tư xây dựng tuyến đường cao tốc mới.",
+      "loai_thoai": "thuyet_minh",
+      "co_canh": "EWS",
+      "goc_may": "high_angle_flycam",
+      "chuyen_dong": "push_in",
+      "boi_canh": "Toàn tuyến cao tốc qua thung lũng, buổi sáng",
+      "nhan_vat": [],
+      "hanh_dong": "",
+      "cam_xuc": "trang trọng, mở rộng",
+      "nguon": {
+        "file": "nguon/flycam.mp4",
+        "vao": 0.0,
+        "ra": 5.0
+      },
+      "chu_tren_hinh": "",
+      "chuyen_canh": "cut",
+      "prompt_bo_sung": "",
+      "seed": null,
+      "trang_thai": "da_dung"
+    },
+    {
+      "id": "C02",
+      "thoi_luong": 8.6,
+      "thoai": "Tuyến có chiều dài khoảng một trăm hai mươi ki lô mét, quy mô bốn làn xe cao tốc, tốc độ thiết kế một trăm ki lô mét trên giờ.",
+      "loai_thoai": "thuyet_minh",
+      "co_canh": "WS",
+      "goc_may": "top_down",
+      "chuyen_dong": "tracking",
+      "boi_canh": "Bản đồ tuyến vẽ dần từ điểm đầu tới điểm cuối",
+      "nhan_vat": [],
+      "hanh_dong": "",
+      "cam_xuc": "rõ ràng, số liệu",
+      "nguon": null,
+      "chu_tren_hinh": "~120 km · 4 làn · 100 km/h",
+      "chuyen_canh": "dissolve",
+      "prompt_bo_sung": "",
+      "seed": null,
+      "trang_thai": "can_dung"
+    }
+  ]
+}
